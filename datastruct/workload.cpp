@@ -64,40 +64,39 @@ std::shared_ptr<Monomial> operator*(int coef, std::shared_ptr<Iterator> var) {
 
 class Polynomial {
 private:
-  std::shared_ptr<std::vector<std::shared_ptr<Monomial>>> _monomialCollection;
+  std::shared_ptr<std::vector<std::shared_ptr<Monomial>>> _monomialSet;
 
 public:
   Polynomial() {
-    _monomialCollection =
-        std::make_shared<std::vector<std::shared_ptr<Monomial>>>();
+    _monomialSet = std::make_shared<std::vector<std::shared_ptr<Monomial>>>();
   }
   Polynomial(std::shared_ptr<Monomial> m) : Polynomial() {
 
-    _monomialCollection->push_back(m);
+    _monomialSet->push_back(m);
   }
   Polynomial(std::shared_ptr<Iterator> i) : Polynomial() {
 
-    _monomialCollection->push_back(std::make_shared<Monomial>(i));
+    _monomialSet->push_back(std::make_shared<Monomial>(i));
   }
   Polynomial &operator+(std::shared_ptr<Polynomial> other) {
-    for (auto item : *(other->_monomialCollection)) {
-      _monomialCollection->push_back(item);
+    for (auto item : *(other->_monomialSet)) {
+      _monomialSet->push_back(item);
     }
     return *this;
   }
   Polynomial &operator+(std::shared_ptr<Monomial> other) {
-    _monomialCollection->push_back(other);
+    _monomialSet->push_back(other);
     return *this;
   }
   Polynomial &operator+(std::shared_ptr<Iterator> other) {
-    _monomialCollection->push_back(std::make_shared<Monomial>(other));
+    _monomialSet->push_back(std::make_shared<Monomial>(other));
     return *this;
   }
   std::string to_string() {
     std::string ret;
-    const int len = _monomialCollection->size();
+    const int len = _monomialSet->size();
     for (int i = 0; i < len; i++) {
-      ret += (*_monomialCollection)[i]->to_string();
+      ret += (*_monomialSet)[i]->to_string();
       if (i != len - 1)
         ret += " + ";
     }
@@ -106,7 +105,7 @@ public:
   std::pair<int, int> getRange() {
     std::pair<int, int> ret = {0, 0}, tmp;
 
-    for (auto m : *_monomialCollection) {
+    for (auto m : *_monomialSet) {
       tmp = m->getRange();
       ret.first += tmp.first;
       ret.second += tmp.second;
@@ -177,12 +176,12 @@ public:
     _dimensionTable->push_back(p);
     return *this;
   }
-  Tensor &operator[](std::shared_ptr<Iterator> p) {
-    _dimensionTable->push_back(std::make_shared<Polynomial>(p));
+  Tensor &operator[](std::shared_ptr<Iterator> i) {
+    _dimensionTable->push_back(std::make_shared<Polynomial>(i));
     return *this;
   }
-  Tensor &operator[](std::shared_ptr<Monomial> p) {
-    _dimensionTable->push_back(std::make_shared<Polynomial>(p));
+  Tensor &operator[](std::shared_ptr<Monomial> m) {
+    _dimensionTable->push_back(std::make_shared<Polynomial>(m));
     return *this;
   }
   std::string to_string() {
