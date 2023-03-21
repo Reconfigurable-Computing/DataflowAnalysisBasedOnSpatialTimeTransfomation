@@ -46,9 +46,15 @@
         "typeinfo": "cpp",
         "cstring": "cpp",
         "complex": "cpp",
-        "dense": "cpp"
+        "dense": "cpp",
+        "map": "cpp",
+        "core": "cpp",
+        "cinttypes": "cpp",
+        "arch": "cpp",
+        "workload": "cpp"
     },
     "files.watcherExclude": {
         "**/target": true
-    }
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }

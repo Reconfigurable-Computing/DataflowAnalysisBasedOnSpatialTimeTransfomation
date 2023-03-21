@@ -8,6 +8,8 @@
                 "-fdiagnostics-color=always",
                 "-g",
                 "${file}",
+                "-I",
+                "/${cwd}",
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}"
             ],
