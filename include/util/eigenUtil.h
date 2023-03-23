@@ -67,28 +67,44 @@ struct Fraction {
 };
 
 void compATinv(MAPPING::Transform &T, MAPPING::Access &A,
-               std::vector<std::vector<Fraction>> &ATinv);
+               std::vector<std::vector<int>> &matrix);
 
 std::pair<int, int>
-findFirstNoZeroRow(std::vector<std::vector<Fraction>> &ATinv, int startRow);
-void rowSubRow(std::vector<std::vector<Fraction>> &ATinv, int row1, int row2,
+findFirstNoZeroRow(std::vector<std::vector<Fraction>> &matrix, int startRow);
+void rowSubRow(std::vector<std::vector<Fraction>> &matrix, int row1, int row2,
                Fraction rate);
-void rowDivNum(std::vector<std::vector<Fraction>> &ATinv, int row1,
+void rowDivNum(std::vector<std::vector<Fraction>> &matrix, int row1,
                Fraction rate);
-void convertTrapezoidalMatrix(std::vector<std::vector<Fraction>> &ATinv,
+void convertTrapezoidalMatrix(std::vector<std::vector<Fraction>> &matrix,
                               std::vector<std::pair<int, int>> &majorVec);
 void swapCol(std::vector<std::vector<Fraction>> &matrix, int col1, int col2);
 void aggregateMajorVar(std::vector<std::pair<int, int>> &majorVec,
                        std::vector<int> &varSymFlag,
-                       std::vector<std::vector<Fraction>> &ATinv);
+                       std::vector<std::vector<Fraction>> &matrix);
 
 void buildFractionReuseVec(std::vector<std::pair<int, int>> &majorVec,
                            std::vector<int> &varSymFlag,
-                           std::vector<std::vector<Fraction>> &ATinv,
+                           std::vector<std::vector<Fraction>> &matrix,
                            std::vector<std::vector<Fraction>> &reuseVec);
 void buildIntReuseVec(std::vector<std::pair<int, int>> &majorVec,
-                      std::vector<std::vector<Fraction>> &ATinv,
+                      std::vector<std::vector<Fraction>> &matrix,
                       std::vector<std::vector<Fraction>> &reuseVec,
                       std::shared_ptr<std::vector<std::vector<int>>> ret);
+
+std::shared_ptr<std::vector<std::vector<int>>>
+doSolvingLinearEquations(std::vector<std::vector<Fraction>> &tmpM);
+void convertIntAb2Fraction(std::vector<std::vector<int>> &src,
+                           std::vector<std::vector<Fraction>> &dst,
+                           std::vector<int> &b);
+
+void convertIntAb2Fraction(std::vector<std::vector<int>> &src,
+                           std::vector<std::vector<Fraction>> &dst, int b);
+
+std::shared_ptr<std::vector<std::vector<int>>>
+solvingLinearEquations(std::vector<std::vector<int>> &matrix, int b);
+
+std::shared_ptr<std::vector<std::vector<int>>>
+solvingLinearEquations(std::vector<std::vector<int>> &matrix,
+                       std::vector<int> &b);
 std::shared_ptr<std::vector<std::vector<int>>>
 compReuseVec(MAPPING::Transform &T, MAPPING::Access &A);

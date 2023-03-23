@@ -23,6 +23,8 @@ public:
   Array() : _rowNum(1), _colNum(1), _wordBit(16) {}
   Array(int rowNum, int colNum, int wordBit)
       : _rowNum(rowNum), _colNum(colNum), _wordBit(wordBit) {}
+  int getRowNum() { return _rowNum; }
+  int getColNum() { return _colNum; }
 }; // end of Array
 class NetworkItem {
 private:
@@ -33,7 +35,7 @@ private:
 public:
   NetworkItem(std::pair<int, int> firstCoord, int coupledNum)
       : _firstCoord(firstCoord), _coupledNum(coupledNum) {}
-
+  std::pair<int, int> getFirstCoord() { return _firstCoord; }
 }; // end of NetworkItem
 class Network {
 private:
@@ -65,6 +67,14 @@ public:
     }
   }
 
+  NETWORKTYPE getNetworkType() { return _networkType; }
+  void getAccessPoint(std::vector<std::pair<int, int>> &ret, int rowNum,
+                      int colNum) {
+    assert(_networkType != UNICAST && _networkType != STATIONARY);
+    for (auto item : *_networkItemSet) {
+      ret.push_back(item->getFirstCoord());
+    }
+  }
   void constructNetwork(int rowNum, int colNum) {
     if (_featureVec[0] == 1 && _featureVec[1] == 0) {
       for (int rowIndex = 0; rowIndex < rowNum; rowIndex++) {
@@ -159,6 +169,16 @@ public:
     _networkSet->push_back(
         std::make_shared<Network>(featureVec2, rowNum, colNum));
   }
+  NETWORKTYPE getNetworkType() // to do mult network
+  {
+    return (*_networkSet)[0]->getNetworkType();
+  }
+  void getAccessPoint(std::vector<std::pair<int, int>> &ret, int rowNum,
+                      int colNum) // to do mult network
+  {
+    (*_networkSet)[0]->getAccessPoint(ret, rowNum, colNum);
+  }
+
 }; // end of NetworkGroup
 
 class Buffer {
@@ -211,6 +231,18 @@ public:
   }
   void appendArray(int rowNum, int colNum, int wordBit) {
     _array = std::make_shared<Array>(rowNum, colNum, wordBit);
+  }
+
+  NETWORKTYPE getNetworkType(DATATYPE dataType) // to do mult network
+  {
+    return (*_networkGroupSet)[dataType]->getNetworkType();
+  }
+  void
+  getAccessPoint(DATATYPE dataType,
+                 std::vector<std::pair<int, int>> &ret) // to do mult network
+  {
+    (*_networkGroupSet)[dataType]->getAccessPoint(ret, _array->getRowNum(),
+                                                  _array->getColNum());
   }
 }; // end of Level
 

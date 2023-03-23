@@ -32,6 +32,7 @@ public:
   int getUpBound() { return _lock ? 0 : _upBound; }
   void lock() { _lock = 1; }
   void unlock() { _lock = 0; }
+  int getRange() { return _lock ? 0 : _upBound - _lowBound + 1; }
 }; // end of Iterator
 
 class Monomial {
