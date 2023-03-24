@@ -32,7 +32,13 @@ public:
   int getUpBound() { return _lock ? 0 : _upBound; }
   void lock() { _lock = 1; }
   void unlock() { _lock = 0; }
-  int getRange() { return _lock ? 0 : _upBound - _lowBound + 1; }
+  int getSize() { return _lock ? 0 : _upBound - _lowBound + 1; }
+  std::pair<int, int> getRange() {
+    std::pair<int, int> ret;
+    ret.first = getLowBound();
+    ret.second = getUpBound();
+    return ret;
+  }
 }; // end of Iterator
 
 class Monomial {
@@ -117,6 +123,10 @@ public:
       ret.second += tmp.second;
     }
     return ret;
+  }
+  int getSize() {
+    std::pair<int, int> tmp = getRange();
+    return tmp.second - tmp.first + 1;
   }
 
   int lookupVar(std::shared_ptr<Iterator> i) {

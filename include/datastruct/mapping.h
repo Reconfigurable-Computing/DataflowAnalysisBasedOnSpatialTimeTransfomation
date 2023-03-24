@@ -42,24 +42,16 @@ public:
       if ((*_value)[j] == 1 && (*_value)[j + _colNum] == 1)
         return 0;
     }
-    int countSpatialOne;
-    int countSpatialAndTemporalOne;
+    int count;
     for (int i = 0; i < 2; i++) {
-      countSpatialOne = 0;
-      countSpatialAndTemporalOne = 0;
-      for (int k = 0; k < _colNum; k++) {
-        if ((*_value)[_colNum * i + k] == 1)
-          countSpatialOne++;
-      }
-      if (countSpatialOne > 1) {
-        for (int j = 2; j < _colNum; j++) {
-          for (int k = 0; k < _colNum; k++) {
-            if ((*_value)[_colNum * i + k] == 1 &&
-                (*_value)[_colNum * j + k] == 1)
-              return 0;
-          }
+      count = 0;
+      for (int j = 0; j < _colNum; j++) {
+        if ((*_value)[j + i * _colNum] == 1) {
+          count++;
         }
       }
+      if (count > 1)
+        return 0;
     }
     return 1;
   }
