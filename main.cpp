@@ -17,12 +17,29 @@ using namespace Eigen;
 using namespace Eigen::internal;
 using namespace Eigen::Architecture;
 typedef double valueType;
-
+struct Result {
+  int perPEVolumn[3]; // input weight output
+  int uniqueVolumn[3];
+  int totalVolumn[3];
+  int reuseVolumn[3];
+  int baseCycle;
+  int baseData[3];
+  Result() {
+    for (int i = 0; i < 3; i++) {
+      perPEVolumn[i] = 0;
+      uniqueVolumn[i] = 0;
+      totalVolumn[i] = 0;
+      reuseVolumn[i] = 0;
+      baseData[i] = 0;
+    }
+    baseCycle = 0;
+  }
+};
 class Analyzer {
 private:
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> &_coupledVarVec;
+  std::vector<std::shared_ptr<WORKLOAD::Iterator>> &_lowerVarVec;
   MAPPING::Transform &_T;
-  int _base;
   WORKLOAD::Tensor &_I;
   WORKLOAD::Tensor &_W;
   WORKLOAD::Tensor &_O;
@@ -30,15 +47,29 @@ private:
   MAPPING::Access &_accessI;
   MAPPING::Access &_accessW;
   MAPPING::Access &_accessO;
+  Result _result;
 
 public:
   Analyzer(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
-           MAPPING::Transform &T, int base, WORKLOAD::Tensor &I,
-           WORKLOAD::Tensor &W, WORKLOAD::Tensor &O, ARCH::Level &L1,
-           MAPPING::Access &accessI, MAPPING::Access &accessW,
+           std::vector<std::shared_ptr<WORKLOAD::Iterator>> &lowerVarVec,
+           MAPPING::Transform &T, int baseCycle, int baseData[3],
+           WORKLOAD::Tensor &I, WORKLOAD::Tensor &W, WORKLOAD::Tensor &O,
+           ARCH::Level &L1, MAPPING::Access &accessI, MAPPING::Access &accessW,
            MAPPING::Access &accessO)
-      : _base(base), _coupledVarVec(coupledVarVec), _T(T), _I(I), _W(W), _O(O),
-        _L1(L1), _accessI(accessI), _accessW(accessW), _accessO(accessO) {}
+      : _coupledVarVec(coupledVarVec), _T(T), _I(I), _W(W), _O(O), _L1(L1),
+        _accessI(accessI), _accessW(accessW), _accessO(accessO),
+        _lowerVarVec(lowerVarVec) {
+    _result.baseCycle = baseCycle;
+    for (int i = 0; i < 3; i++) {
+      _result.baseData[i] = baseData[i];
+    }
+
+    getComputationDelay();
+    accessAnalysis(ARCH::OUTPUT, _accessO);
+    accessAnalysis(ARCH::INPUT, _accessI);
+    accessAnalysis(ARCH::WEIGHT, _accessW);
+    getDelay(1);
+  }
   std::pair<int, int> getTRange(int row) {
     int colNumT = _T.getColNum();
     std::shared_ptr<WORKLOAD::Polynomial> dim =
@@ -100,8 +131,8 @@ public:
     int perPEVolumn = getPerPEVolumn(access);
     std::pair<int, int> PEXRange = getTRange(0);
     std::pair<int, int> PEYRange = getTRange(1);
-    std::vector<std::pair<int, int>> accessPointSet;
     if (networkType == ARCH::SYSTOLIC || networkType == ARCH::MULTICAST) {
+      std::vector<std::pair<int, int>> accessPointSet;
       _L1.getAccessPoint(dataType, accessPointSet);
       int activeAccessPointNum = 0;
       for (auto accessPoint : accessPointSet) {
@@ -110,21 +141,48 @@ public:
             accessPoint.second >= PEYRange.first &&
             accessPoint.second <= PEYRange.second) {
           activeAccessPointNum++;
-          ;
         }
       }
       uniqueVolumn = perPEVolumn * activeAccessPointNum;
-      reuseVolumn = totalVolumn - uniqueVolumn;
-    } else if (networkType == ARCH::STATIONARY) {
-      uniqueVolumn = (PEYRange.second - PEYRange.first + 1) *
-                     (PEXRange.second - PEXRange.first + 1) * perPEVolumn;
       reuseVolumn = totalVolumn - uniqueVolumn;
     } else {
       uniqueVolumn = (PEYRange.second - PEYRange.first + 1) *
                      (PEXRange.second - PEXRange.first + 1) * perPEVolumn;
       reuseVolumn = totalVolumn - uniqueVolumn;
     }
+    _result.perPEVolumn[dataType] = perPEVolumn;
+    _result.uniqueVolumn[dataType] = uniqueVolumn;
+    _result.reuseVolumn[dataType] = reuseVolumn;
+    _result.totalVolumn[dataType] = totalVolumn;
   }
+
+  void getDelay(int baseDelay) {
+    std::pair<int, int> PEXRange = getTRange(0);
+    std::pair<int, int> PEYRange = getTRange(1);
+
+    int inputInitDelay = _L1.getInitOrOutDelay(ARCH::INPUT, 1, 16);
+    int weightInitDelay = _L1.getInitOrOutDelay(ARCH::WEIGHT, 1, 16);
+    int outputOutDelay = _L1.getInitOrOutDelay(ARCH::OUTPUT, 1, 16);
+
+    int inputStableDelay = _L1.getStableDelay(ARCH::INPUT, 1, 16);
+    int weightStableDelay = _L1.getStableDelay(ARCH::WEIGHT, 1, 16);
+    int outputStableDelay = _L1.getStableDelay(ARCH::OUTPUT, 1, 16);
+
+    int stableDelay =
+        std::max(std::max(std::max(inputStableDelay, weightStableDelay),
+                          outputStableDelay),
+                 baseDelay);
+    int coupleVarNum = _coupledVarVec.size();
+    auto timeRange = getTRange(2);
+    int timeSize = timeRange.second - timeRange.first + 1;
+    for (int i = 3; i < coupleVarNum; i++) {
+      timeRange = getTRange(i);
+      timeSize *= timeRange.second - timeRange.first + 1;
+    }
+    int delay = timeSize * stableDelay +
+                std::max(inputInitDelay, weightInitDelay) + outputOutDelay;
+  }
+  void compSubTensorSize() {}
 };
 
 // std::shared_ptr<std::vector<int>>
@@ -133,23 +191,23 @@ int main() {
 
   MAPPING::Transform T(3, std::make_shared<std::vector<int>>(
                               std::vector<int>{1, 0, 0, 0, 1, 0, 1, 1, 1}));
-  ARCH::Level L1;
+  ARCH::Level L1(16);
   L1.appendArray(32, 32, 16);
   L1.appendBuffer(ARCH::REG, ARCH::INPUT, 128, 16);
   L1.appendBuffer(ARCH::REG, ARCH::WEIGHT, 128, 16);
   L1.appendBuffer(ARCH::REG, ARCH::OUTPUT, 128, 16);
-  L1.appendNetworkGroup(32, 32, ARCH::INPUT, {1, 0, 1});
-  L1.appendNetworkGroup(32, 32, ARCH::WEIGHT, {0, 1, 1});
-  L1.appendNetworkGroup(32, 32, ARCH::OUTPUT, {0, 0, 1});
+  L1.appendNetworkGroup(32, 32, ARCH::INPUT, 16, {1, 0, 1});
+  L1.appendNetworkGroup(32, 32, ARCH::WEIGHT, 16, {0, 1, 1});
+  L1.appendNetworkGroup(32, 32, ARCH::OUTPUT, 16, {0, 0, 1});
 
   std::shared_ptr<WORKLOAD::Iterator> k =
       std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, {'k'}));
   std::shared_ptr<WORKLOAD::Iterator> c =
-      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 255, {'c'}));
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 4, {'c'}));
   std::shared_ptr<WORKLOAD::Iterator> y =
       std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 31, {'y'}));
   std::shared_ptr<WORKLOAD::Iterator> x =
-      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 15, {'x'}));
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 2, {'x'}));
   std::shared_ptr<WORKLOAD::Iterator> p =
       std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, {'p'}));
   std::shared_ptr<WORKLOAD::Iterator> q =
@@ -163,12 +221,15 @@ int main() {
 
   std::cout << I.getRange(1).first << ' ' << I.getRange(1).second << std::endl;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec;
+  std::vector<std::shared_ptr<WORKLOAD::Iterator>> upperVarVec;
+  std::vector<std::shared_ptr<WORKLOAD::Iterator>> lowerVarVec;
   coupledVarVec.push_back(k);
-  coupledVarVec.push_back(c);
   coupledVarVec.push_back(x);
-  y->lock();
-  p->lock();
-  q->lock();
+  coupledVarVec.push_back(c);
+  lowerVarVec.push_back(y);
+  lowerVarVec.push_back(p);
+  lowerVarVec.push_back(q);
+
   std::cout << I.getRange(1).first << ' ' << I.getRange(1).second << std::endl;
   I.bindVar(coupledVarVec);
   W.bindVar(coupledVarVec);
@@ -184,10 +245,8 @@ int main() {
       compReuseVec(T, accessW);
   std::shared_ptr<std::vector<std::vector<int>>> reuseVecO =
       compReuseVec(T, accessO);
-  Analyzer analyzer(coupledVarVec, T, 1, I, W, O, L1, accessI, accessW,
-                    accessO);
-  analyzer.getComputationDelay();
-  analyzer.accessAnalysis(ARCH::OUTPUT, accessO);
-  analyzer.accessAnalysis(ARCH::INPUT, accessI);
+  int baseData[3] = {1, 1, 1};
+  Analyzer analyzer(coupledVarVec, lowerVarVec, T, 1, baseData, I, W, O, L1,
+                    accessI, accessW, accessO);
   return 0;
 }
