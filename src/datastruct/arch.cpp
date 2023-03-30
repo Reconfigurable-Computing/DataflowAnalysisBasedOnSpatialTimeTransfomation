@@ -98,8 +98,9 @@ void Network::constructNetwork(
     }
   }
 }
-int NetworkGroup::getInitOrOutDelay(int base,
-                                    int bitWidth) // for input and weight
+int NetworkGroup::getInitOrOutDelay(
+    int base, int bitWidth, std::pair<int, int> PEXRange,
+    std::pair<int, int> PEYRange) // for input and weight
 {
   if (_networkSet->size() == 1) {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
@@ -112,7 +113,7 @@ int NetworkGroup::getInitOrOutDelay(int base,
       // STATIONARY - SYSTOLIC UNICAST
       if (networkType2 == SYSTOLIC) {
         return (*_networkSet)[1]->getDelay(base, bitWidth) *
-               (*_networkSet)[1]->getMaxCoupleNum();
+               (*_networkSet)[1]->getMaxCoupleNum(PEXRange, PEYRange);
       } else // UNICAST
       {
         return (*_networkSet)[1]->getDelay(base, bitWidth);
@@ -120,26 +121,14 @@ int NetworkGroup::getInitOrOutDelay(int base,
     } else if (networkType2 == STATIONARY) {
       if (networkType1 == SYSTOLIC) {
         return (*_networkSet)[0]->getDelay(base, bitWidth) *
-               (*_networkSet)[0]->getMaxCoupleNum();
+               (*_networkSet)[0]->getMaxCoupleNum(PEXRange, PEYRange);
       } else // MULTICAST
       {
         return (*_networkSet)[0]->getDelay(base, bitWidth);
       }
     } else {
-      int initDelay = 0;
-      if (networkType1 == SYSTOLIC) {
-        initDelay += (*_networkSet)[0]->getDelay(base, bitWidth) *
-                     (*_networkSet)[0]->getMaxCoupleNum();
-      } else {
-        initDelay += (*_networkSet)[0]->getDelay(base, bitWidth);
-      }
-      if (networkType2 == SYSTOLIC) {
-        initDelay += (*_networkSet)[1]->getDelay(base, bitWidth) *
-                     (*_networkSet)[1]->getMaxCoupleNum();
-      } else {
-        initDelay += (*_networkSet)[1]->getDelay(base, bitWidth);
-      }
-      return initDelay;
+      return (*_networkSet)[0]->getDelay(base, bitWidth);
+      ;
     }
   }
 }
@@ -157,6 +146,50 @@ int NetworkGroup::getStableDelay(int base, int bitWidth) {
       return std::max((*_networkSet)[0]->getDelay(base, bitWidth),
                       (*_networkSet)[1]->getDelay(base, bitWidth));
     }
+  }
+}
+int Network::getMaxCoupleNum(std::pair<int, int> PEXRange,
+                             std::pair<int, int> PEYRange) {
+  assert(_networkType != UNICAST && _networkType != STATIONARY);
+
+  int featureX = _featureVec[0], featureY = _featureVec[1],
+      featureT = _featureVec[2];
+
+  if (featureX == 0) {
+    if (featureY == 1) {
+      return PEYRange.second + 1;
+    } else // featureY = -1
+    {
+      return _rowNum - PEYRange.first;
+    }
+  }
+  if (featureY == 0) {
+    if (featureX == 1) {
+      return PEXRange.second + 1;
+    } else // featureX = -1
+    {
+      return _colNum - PEXRange.first;
+    }
+  } else {
+    int ret = 0;
+    int perCoupleNum;
+    for (auto item : (*_networkItemMap)) {
+      std::pair<int, int> accessPoint = item.first;
+      if (featureX == 1) {
+        perCoupleNum = PEXRange.second - accessPoint.first + 1;
+      } else if (featureX == -1) {
+        perCoupleNum = accessPoint.first - PEXRange.first + 1;
+      }
+      if (featureY == 1) {
+        perCoupleNum =
+            std::min(perCoupleNum, PEYRange.second - accessPoint.second + 1);
+      } else if (featureY == -1) {
+        perCoupleNum =
+            std::min(perCoupleNum, accessPoint.second - PEYRange.first + 1);
+      }
+      ret = std::max(ret, perCoupleNum);
+    }
+    return ret;
   }
 }
 } // namespace ARCH

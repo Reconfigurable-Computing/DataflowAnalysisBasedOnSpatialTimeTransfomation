@@ -13,9 +13,6 @@
 #include <string>
 #include <vector>
 // using Eigen::MatrixXd;
-using namespace Eigen;
-using namespace Eigen::internal;
-using namespace Eigen::Architecture;
 typedef double valueType;
 struct Result {
   int perPEVolumn[3]; // input weight output
@@ -68,7 +65,7 @@ public:
     accessAnalysis(ARCH::OUTPUT, _accessO);
     accessAnalysis(ARCH::INPUT, _accessI);
     accessAnalysis(ARCH::WEIGHT, _accessW);
-    getDelay(1);
+    getStableDelay(1);
   }
   std::pair<int, int> getTRange(int row) {
     int colNumT = _T.getColNum();
@@ -156,31 +153,49 @@ public:
     _result.totalVolumn[dataType] = totalVolumn;
   }
 
-  void getDelay(int baseDelay) {
+  void getStableDelay(int compDelay) {
+    int doubleBufferFlag = 1;
+    int lowestFlag = 1;
     std::pair<int, int> PEXRange = getTRange(0);
     std::pair<int, int> PEYRange = getTRange(1);
-
-    int inputInitDelay = _L1.getInitOrOutDelay(ARCH::INPUT, 1, 16);
-    int weightInitDelay = _L1.getInitOrOutDelay(ARCH::WEIGHT, 1, 16);
-    int outputOutDelay = _L1.getInitOrOutDelay(ARCH::OUTPUT, 1, 16);
-
     int inputStableDelay = _L1.getStableDelay(ARCH::INPUT, 1, 16);
     int weightStableDelay = _L1.getStableDelay(ARCH::WEIGHT, 1, 16);
     int outputStableDelay = _L1.getStableDelay(ARCH::OUTPUT, 1, 16);
-
+    int inputInitDelay =
+        _L1.getInitOrOutDelay(ARCH::INPUT, 1, 16, PEXRange, PEYRange);
+    int weightInitDelay =
+        _L1.getInitOrOutDelay(ARCH::WEIGHT, 1, 16, PEXRange, PEYRange);
+    int outputOutDelay =
+        _L1.getInitOrOutDelay(ARCH::OUTPUT, 1, 16, PEXRange, PEYRange);
     int stableDelay =
         std::max(std::max(std::max(inputStableDelay, weightStableDelay),
                           outputStableDelay),
-                 baseDelay);
+                 compDelay);
     int coupleVarNum = _coupledVarVec.size();
     auto timeRange = getTRange(2);
     int timeSize = timeRange.second - timeRange.first + 1;
-    for (int i = 3; i < coupleVarNum; i++) {
-      timeRange = getTRange(i);
-      timeSize *= timeRange.second - timeRange.first + 1;
+    int delay;
+    if (lowestFlag == 1 || doubleBufferFlag == 0) {
+      delay =
+          timeSize * stableDelay +
+          std::max(std::max(inputInitDelay, weightInitDelay), outputOutDelay);
+    } else // doublebuffer
+    {
+      delay = timeSize * stableDelay +
+              std::max(std::max(std::max(inputInitDelay, weightInitDelay),
+                                outputOutDelay) -
+                           timeSize * stableDelay,
+                       0);
     }
-    int delay = timeSize * stableDelay +
-                std::max(inputInitDelay, weightInitDelay) + outputOutDelay;
+    if (coupleVarNum > 3) {
+      timeRange = getTRange(3);
+      timeSize = timeRange.second - timeRange.first + 1;
+      for (int i = 4; i < coupleVarNum; i++) {
+        timeRange = getTRange(i);
+        timeSize *= timeRange.second - timeRange.first + 1;
+      }
+      delay = timeSize * delay;
+    }
   }
   void compSubTensorSize() {}
 };
@@ -192,13 +207,13 @@ int main() {
   MAPPING::Transform T(3, std::make_shared<std::vector<int>>(
                               std::vector<int>{1, 0, 0, 0, 1, 0, 1, 1, 1}));
   ARCH::Level L1(16);
-  L1.appendArray(32, 32, 16);
+  L1.appendArray(32, 16, 16);
   L1.appendBuffer(ARCH::REG, ARCH::INPUT, 128, 16);
   L1.appendBuffer(ARCH::REG, ARCH::WEIGHT, 128, 16);
   L1.appendBuffer(ARCH::REG, ARCH::OUTPUT, 128, 16);
-  L1.appendNetworkGroup(32, 32, ARCH::INPUT, 16, {1, 0, 1});
-  L1.appendNetworkGroup(32, 32, ARCH::WEIGHT, 16, {0, 1, 1});
-  L1.appendNetworkGroup(32, 32, ARCH::OUTPUT, 16, {0, 0, 1});
+  L1.appendNetworkGroup(32, 16, ARCH::INPUT, 16, {1, 0, 1});
+  L1.appendNetworkGroup(32, 16, ARCH::WEIGHT, 16, {0, 1, 1});
+  L1.appendNetworkGroup(32, 16, ARCH::OUTPUT, 16, {0, 0, 1});
 
   std::shared_ptr<WORKLOAD::Iterator> k =
       std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, {'k'}));

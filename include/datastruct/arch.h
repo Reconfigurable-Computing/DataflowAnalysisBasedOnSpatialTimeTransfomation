@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+
 namespace ARCH {
 // decclare the network reuse type
 typedef enum { UNICAST, MULTICAST, SYSTOLIC, STATIONARY } NETWORKTYPE;
@@ -50,13 +51,15 @@ private:
   NETWORKTYPE _networkType;
   int _bandWidth; // for unicast and systolic is common case  for multicast
                   // means baseBandWidth  unit:bit/cycle
+  int _rowNum;
+  int _colNum;
 
 public:
   Network(std::vector<int> featureVec, int rowNum, int colNum,
           NETWORKTYPE networkType, int bandWidth,
           int doubleNetworkFirstFlag = 0)
       : _featureVec(featureVec), _networkType(networkType),
-        _bandWidth(bandWidth) {
+        _bandWidth(bandWidth), _colNum(colNum), _rowNum(rowNum) {
 
     if (_networkType == SYSTOLIC || _networkType == MULTICAST) {
       _networkItemMap = std::make_shared<
@@ -82,14 +85,9 @@ public:
       ret.push_back(item.second->getFirstCoord());
     }
   }
-  int getMaxCoupleNum() {
-    assert(_networkType != UNICAST && _networkType != STATIONARY);
-    int ret = 0;
-    for (auto item : (*_networkItemMap)) {
-      ret = std::max(item.second->getCoupledNum(), ret);
-    }
-    return ret;
-  }
+  // num from access point(first Coord) to max coupled coord
+  int getMaxCoupleNum(std::pair<int, int> PEXRange,
+                      std::pair<int, int> PEYRange);
   void constructNetwork(int rowNum, int colNum, int doubleNetworkFirstFlag);
   void setBandWidth(int bandWidth) {
     _bandWidth = bandWidth;
@@ -227,7 +225,8 @@ public:
   {
     (*_networkSet)[0]->getAccessPoint(ret, rowNum, colNum);
   }
-  int getInitOrOutDelay(int base, int bitWidth);
+  int getInitOrOutDelay(int base, int bitWidth, std::pair<int, int> PEXRange,
+                        std::pair<int, int> PEYRange);
   int getStableDelay(int base, int bitWidth);
 }; // end of NetworkGroup
 
@@ -295,8 +294,11 @@ public:
     (*_networkGroupSet)[dataType]->getAccessPoint(ret, _array->getRowNum(),
                                                   _array->getColNum());
   }
-  int getInitOrOutDelay(DATATYPE dataType, int base, int bitWidth) {
-    return (*_networkGroupSet)[dataType]->getInitOrOutDelay(base, bitWidth);
+  int getInitOrOutDelay(DATATYPE dataType, int base, int bitWidth,
+                        std::pair<int, int> PEXRange,
+                        std::pair<int, int> PEYRange) {
+    return (*_networkGroupSet)[dataType]->getInitOrOutDelay(base, bitWidth,
+                                                            PEXRange, PEYRange);
   }
   int getStableDelay(DATATYPE dataType, int base, int bitWidth) {
     return (*_networkGroupSet)[dataType]->getStableDelay(base, bitWidth);
