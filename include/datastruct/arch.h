@@ -7,7 +7,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-
 namespace ARCH {
 // decclare the network reuse type
 typedef enum { UNICAST, MULTICAST, SYSTOLIC, STATIONARY } NETWORKTYPE;
@@ -225,6 +224,19 @@ public:
   {
     (*_networkSet)[0]->getAccessPoint(ret, rowNum, colNum);
   }
+  bool checkIfStationary() {
+    if (_networkSet->size() == 1) {
+      return false;
+    } else {
+      NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
+      NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
+      if (networkType1 == STATIONARY || networkType2 == STATIONARY) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+  }
   int getInitOrOutDelay(int base, int bitWidth, std::pair<int, int> PEXRange,
                         std::pair<int, int> PEYRange);
   int getStableDelay(int base, int bitWidth);
@@ -302,6 +314,9 @@ public:
   }
   int getStableDelay(DATATYPE dataType, int base, int bitWidth) {
     return (*_networkGroupSet)[dataType]->getStableDelay(base, bitWidth);
+  }
+  bool checkIfStationary(DATATYPE dataType) {
+    return (*_networkGroupSet)[dataType]->checkIfStationary();
   }
 }; // end of Level
 

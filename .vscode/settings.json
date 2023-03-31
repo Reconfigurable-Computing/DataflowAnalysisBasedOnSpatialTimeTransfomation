@@ -52,7 +52,8 @@
         "cinttypes": "cpp",
         "arch": "cpp",
         "workload": "cpp",
-        "list": "cpp"
+        "list": "cpp",
+        "set": "cpp"
     },
     "files.watcherExclude": {
         "**/target": true

@@ -10,9 +10,9 @@
 #include <map>
 #include <math.h>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
-// using Eigen::MatrixXd;
 typedef double valueType;
 struct Result {
   int perPEVolumn[3]; // input weight output
@@ -45,6 +45,11 @@ private:
   MAPPING::Access &_accessW;
   MAPPING::Access &_accessO;
   Result _result;
+  std::shared_ptr<std::vector<std::vector<int>>> _reuseVecI;
+  std::shared_ptr<std::vector<std::vector<int>>> _reuseVecW;
+  std::shared_ptr<std::vector<std::vector<int>>> _reuseVecO;
+  std::map<ARCH::DATATYPE, std::shared_ptr<std::vector<std::vector<int>>>>
+      _reuseVecMap;
 
 public:
   Analyzer(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
@@ -52,15 +57,21 @@ public:
            MAPPING::Transform &T, int baseCycle, int baseData[3],
            WORKLOAD::Tensor &I, WORKLOAD::Tensor &W, WORKLOAD::Tensor &O,
            ARCH::Level &L1, MAPPING::Access &accessI, MAPPING::Access &accessW,
-           MAPPING::Access &accessO)
+           MAPPING::Access &accessO,
+           std::shared_ptr<std::vector<std::vector<int>>> reuseVecI,
+           std::shared_ptr<std::vector<std::vector<int>>> reuseVecW,
+           std::shared_ptr<std::vector<std::vector<int>>> reuseVecO)
       : _coupledVarVec(coupledVarVec), _T(T), _I(I), _W(W), _O(O), _L1(L1),
         _accessI(accessI), _accessW(accessW), _accessO(accessO),
-        _lowerVarVec(lowerVarVec) {
+        _lowerVarVec(lowerVarVec), _reuseVecI(reuseVecI), _reuseVecO(reuseVecO),
+        _reuseVecW(reuseVecW) {
     _result.baseCycle = baseCycle;
     for (int i = 0; i < 3; i++) {
       _result.baseData[i] = baseData[i];
     }
-
+    _reuseVecMap[ARCH::INPUT] = _reuseVecI;
+    _reuseVecMap[ARCH::WEIGHT] = _reuseVecW;
+    _reuseVecMap[ARCH::OUTPUT] = _reuseVecO;
     getComputationDelay();
     accessAnalysis(ARCH::OUTPUT, _accessO);
     accessAnalysis(ARCH::INPUT, _accessI);
@@ -153,7 +164,78 @@ public:
     _result.totalVolumn[dataType] = totalVolumn;
   }
 
-  void getStableDelay(int compDelay) {
+  bool checkValidInnerVar(int varIndex, ARCH::DATATYPE dataType) {
+    std::shared_ptr<std::vector<std::vector<int>>> reuseVecSet =
+        _reuseVecMap[dataType];
+    int m = (*reuseVecSet).size();
+    int n = (*reuseVecSet)[0].size();
+    for (auto reuseVecItem : (*reuseVecSet)) {
+      int flag = 1;
+      for (int j = 0; j < n; j++) {
+        if (j == varIndex) {
+          if (reuseVecItem[j] != 1) {
+            flag = 0;
+          }
+        } else {
+          if (reuseVecItem[j] == 1) {
+            flag = 0;
+          }
+        }
+      }
+      if (flag) {
+        return true;
+      }
+    }
+    return false;
+  }
+  void constructSingleDataTypeSet(int flag, std::set<int> &singleDataTypeSet,
+                                  ARCH::DATATYPE dataType) {
+    int coupleVarNum = _coupledVarVec.size();
+    if (flag) {
+      for (int i = 2; i < coupleVarNum; i++) {
+        if (checkValidInnerVar(i, dataType)) {
+          singleDataTypeSet.insert(i);
+        } else {
+          break;
+        }
+      }
+    } else {
+      for (int i = 2; i < coupleVarNum; i++) {
+        singleDataTypeSet.insert(i);
+      }
+    }
+  }
+
+  void getInnerTime(std::set<int> &innerTimeSet) {
+    int coupleVarNum = _coupledVarVec.size();
+    int inputIfStationary = _L1.checkIfStationary(ARCH::INPUT);
+    int weightIfStationary = _L1.checkIfStationary(ARCH::WEIGHT);
+    int outputIfStationary = _L1.checkIfStationary(ARCH::OUTPUT);
+    std::set<int> inputSet;
+    std::set<int> weightSet;
+    std::set<int> outputSet;
+    constructSingleDataTypeSet(inputIfStationary, inputSet, ARCH::INPUT);
+    constructSingleDataTypeSet(weightIfStationary, weightSet, ARCH::WEIGHT);
+    constructSingleDataTypeSet(outputIfStationary, outputSet, ARCH::OUTPUT);
+    for (int i = 2; i < coupleVarNum; i++) {
+      if (inputSet.count(i) && weightSet.count(i) && outputSet.count(i)) {
+        innerTimeSet.insert(i);
+      } else {
+        break;
+      }
+    }
+  }
+  int getTimeSize(std::set<int> &timeSet) {
+    std::pair<int, int> timeRange;
+    int timeSize = 1;
+    for (auto timeIndex : timeSet) {
+      timeRange = getTRange(timeIndex);
+      timeSize *= timeRange.second - timeRange.first + 1;
+    }
+    return timeSize;
+  }
+
+  int getStableDelay(int compDelay) {
     int doubleBufferFlag = 1;
     int lowestFlag = 1;
     std::pair<int, int> PEXRange = getTRange(0);
@@ -172,31 +254,31 @@ public:
                           outputStableDelay),
                  compDelay);
     int coupleVarNum = _coupledVarVec.size();
-    auto timeRange = getTRange(2);
-    int timeSize = timeRange.second - timeRange.first + 1;
+    std::set<int> innerTimeSet;
+    std::set<int> outerTimeSet;
+    getInnerTime(innerTimeSet);
+    for (int i = 2; i < coupleVarNum; i++) {
+      if (!innerTimeSet.count(i)) {
+        outerTimeSet.insert(i);
+      }
+    }
     int delay;
+    int innerTimeSize = getTimeSize(innerTimeSet);
+    int outerTimeSize = getTimeSize(outerTimeSet);
     if (lowestFlag == 1 || doubleBufferFlag == 0) {
       delay =
-          timeSize * stableDelay +
+          innerTimeSize * stableDelay +
           std::max(std::max(inputInitDelay, weightInitDelay), outputOutDelay);
     } else // doublebuffer
     {
-      delay = timeSize * stableDelay +
-              std::max(std::max(std::max(inputInitDelay, weightInitDelay),
-                                outputOutDelay) -
-                           timeSize * stableDelay,
-                       0);
+      delay = std::max(
+          std::max(std::max(inputInitDelay, weightInitDelay), outputOutDelay),
+          innerTimeSize * stableDelay);
     }
-    if (coupleVarNum > 3) {
-      timeRange = getTRange(3);
-      timeSize = timeRange.second - timeRange.first + 1;
-      for (int i = 4; i < coupleVarNum; i++) {
-        timeRange = getTRange(i);
-        timeSize *= timeRange.second - timeRange.first + 1;
-      }
-      delay = timeSize * delay;
-    }
+    delay *= outerTimeSize;
+    return delay;
   }
+
   void compSubTensorSize() {}
 };
 
@@ -204,8 +286,10 @@ public:
 
 int main() {
 
-  MAPPING::Transform T(3, std::make_shared<std::vector<int>>(
-                              std::vector<int>{1, 0, 0, 0, 1, 0, 1, 1, 1}));
+  MAPPING::Transform T(
+      6, std::make_shared<std::vector<int>>(std::vector<int>{
+             1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0,
+             0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1}));
   ARCH::Level L1(16);
   L1.appendArray(32, 16, 16);
   L1.appendBuffer(ARCH::REG, ARCH::INPUT, 128, 16);
@@ -219,8 +303,8 @@ int main() {
       std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, {'k'}));
   std::shared_ptr<WORKLOAD::Iterator> c =
       std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 4, {'c'}));
-  std::shared_ptr<WORKLOAD::Iterator> y =
-      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 31, {'y'}));
+  std::shared_ptr<WORKLOAD::Iterator> y = std::make_shared<WORKLOAD::Iterator>(
+      WORKLOAD::Iterator(0, 31, 0, 5, {'y'}));
   std::shared_ptr<WORKLOAD::Iterator> x =
       std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 2, {'x'}));
   std::shared_ptr<WORKLOAD::Iterator> p =
@@ -234,15 +318,16 @@ int main() {
   W[k][c][p][q];
   O[k][y][x];
 
-  std::cout << I.getRange(1).first << ' ' << I.getRange(1).second << std::endl;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> upperVarVec;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> lowerVarVec;
   coupledVarVec.push_back(k);
   coupledVarVec.push_back(x);
   coupledVarVec.push_back(c);
+  coupledVarVec.push_back(p);
+  coupledVarVec.push_back(y);
+  coupledVarVec.push_back(q);
   lowerVarVec.push_back(y);
-  lowerVarVec.push_back(p);
   lowerVarVec.push_back(q);
 
   std::cout << I.getRange(1).first << ' ' << I.getRange(1).second << std::endl;
@@ -262,6 +347,6 @@ int main() {
       compReuseVec(T, accessO);
   int baseData[3] = {1, 1, 1};
   Analyzer analyzer(coupledVarVec, lowerVarVec, T, 1, baseData, I, W, O, L1,
-                    accessI, accessW, accessO);
+                    accessI, accessW, accessO, reuseVecI, reuseVecW, reuseVecO);
   return 0;
 }

@@ -10,35 +10,54 @@ private:
   int _lowBound;
   int _upBound;
   std::string _sym;
-  int _lock;
+  bool _lock;
+  bool _hasEdge;
+  bool _edgeFlag;
+  int _edgeLowBound;
+  int _edgeUpBound;
 
 public:
   Iterator() = default;
   Iterator(int lowBound, int upBound, std::string sym)
-      : _lowBound(lowBound), _upBound(upBound), _sym(sym), _lock(0) {}
+      : _lowBound(lowBound), _upBound(upBound), _sym(sym), _lock(false),
+        _hasEdge(false), _edgeFlag(false), _edgeLowBound(0), _edgeUpBound(0) {}
+  Iterator(int lowBound, int upBound, int edgeLowBound, int EdgeUpBound,
+           std::string sym)
+      : _lowBound(lowBound), _upBound(upBound), _sym(sym), _lock(false),
+        _hasEdge(true), _edgeFlag(false), _edgeLowBound(edgeLowBound),
+        _edgeUpBound(EdgeUpBound) {}
   std::string to_string() {
     std::string ret;
     ret += "var:\t" + _sym + "\tlow\t" + std::to_string(_lowBound) + "\tup\t" +
            std::to_string(_upBound);
+    if (_hasEdge) {
+      ret += "\tedgeLow\t" + std::to_string(_edgeLowBound) + "\tedgeUp\t" +
+             std::to_string(_edgeUpBound);
+    }
     return ret;
   }
+
   void setBound(int lowBound, int upBound) {
     _lowBound = lowBound;
     _upBound = upBound;
   }
 
   std::string &getSym() { return _sym; }
-  int getLowBound() { return _lock ? 0 : _lowBound; }
-  int getUpBound() { return _lock ? 0 : _upBound; }
-  void lock() { _lock = 1; }
-  void unlock() { _lock = 0; }
-  int getSize() { return _lock ? 0 : _upBound - _lowBound + 1; }
-  std::pair<int, int> getRange() {
-    std::pair<int, int> ret;
-    ret.first = getLowBound();
-    ret.second = getUpBound();
-    return ret;
+  int getLowBound() {
+    return _lock ? 0 : (_edgeFlag ? _edgeLowBound : _lowBound);
   }
+  int getUpBound() { return _lock ? 0 : (_edgeFlag ? _edgeUpBound : _upBound); }
+  void lock() { _lock = true; }
+  void unlock() { _lock = false; }
+  int getSize() {
+    return _lock ? 0
+                 : (_edgeFlag ? (_edgeUpBound - _edgeLowBound + 1)
+                              : (_upBound - _lowBound + 1));
+  }
+  void setEdge() { _edgeFlag = true; }
+  void unsetEdge() { _edgeFlag = false; }
+  bool hasEdge() { return _hasEdge; }
+
 }; // end of Iterator
 
 class Monomial {
