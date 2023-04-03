@@ -15,17 +15,21 @@ private:
   bool _edgeFlag;
   int _edgeLowBound;
   int _edgeUpBound;
+  int _cur;
+  std::shared_ptr<Iterator> _coupledIterator;
 
 public:
   Iterator() = default;
   Iterator(int lowBound, int upBound, std::string sym)
       : _lowBound(lowBound), _upBound(upBound), _sym(sym), _lock(false),
-        _hasEdge(false), _edgeFlag(false), _edgeLowBound(0), _edgeUpBound(0) {}
+        _hasEdge(false), _edgeFlag(false), _edgeLowBound(0), _edgeUpBound(0),
+        _cur(0) {}
   Iterator(int lowBound, int upBound, int edgeLowBound, int EdgeUpBound,
-           std::string sym)
+           std::shared_ptr<Iterator> _coupledIterator, std::string sym)
       : _lowBound(lowBound), _upBound(upBound), _sym(sym), _lock(false),
         _hasEdge(true), _edgeFlag(false), _edgeLowBound(edgeLowBound),
-        _edgeUpBound(EdgeUpBound) {}
+        _edgeUpBound(EdgeUpBound), _coupledIterator(_coupledIterator), _cur(0) {
+  }
   std::string to_string() {
     std::string ret;
     ret += "var:\t" + _sym + "\tlow\t" + std::to_string(_lowBound) + "\tup\t" +
@@ -44,19 +48,40 @@ public:
 
   std::string &getSym() { return _sym; }
   int getLowBound() {
-    return _lock ? 0 : (_edgeFlag ? _edgeLowBound : _lowBound);
+    return _lock ? 0 : (_edgeFlag ? _upBound + 1 : _lowBound);
   }
-  int getUpBound() { return _lock ? 0 : (_edgeFlag ? _edgeUpBound : _upBound); }
+  int getUpBound() { return _lock ? 0 : (_edgeFlag ? _upBound + 1 : _upBound); }
   void lock() { _lock = true; }
   void unlock() { _lock = false; }
   int getSize() {
-    return _lock ? 0
-                 : (_edgeFlag ? (_edgeUpBound - _edgeLowBound + 1)
-                              : (_upBound - _lowBound + 1));
+    return _lock ? 0 : (_edgeFlag ? 1 : (_upBound - _lowBound + 1));
   }
-  void setEdge() { _edgeFlag = true; }
-  void unsetEdge() { _edgeFlag = false; }
+  void edgeSwap() {
+    int tmpLowBound = _coupledIterator->getLowBound();
+    int tmpUpBound = _coupledIterator->getUpBound();
+    _coupledIterator->setBound(_edgeLowBound, _edgeUpBound);
+    _edgeLowBound = tmpLowBound;
+    _edgeUpBound = tmpUpBound;
+  }
+  void setEdge() {
+    _edgeFlag = true;
+    edgeSwap();
+  }
+  void unsetEdge() {
+    _edgeFlag = false;
+    edgeSwap();
+  }
   bool hasEdge() { return _hasEdge; }
+
+  void getNext() {
+    if (isTop()) {
+      _cur = 0;
+    } else {
+      _cur++;
+    }
+  }
+  bool isTop() { return _cur == getUpBound(); }
+  int getCur() { return _cur; }
 
 }; // end of Iterator
 
@@ -88,6 +113,7 @@ public:
   std::shared_ptr<Iterator> getVar() { return _var; }
 
   int getCoef() { return _coef; }
+  int getCur() { return _coef * _var->getCur(); }
 }; // end of Monomial
 
 std::shared_ptr<Monomial> operator*(std::shared_ptr<Iterator> var, int coef);
@@ -154,6 +180,13 @@ public:
         return m->getCoef();
     }
     return 0;
+  }
+  int getCur() {
+    int ret = 0;
+    for (auto m : *_monomialSet) {
+      ret += m->getCur();
+    }
+    return ret;
   }
 }; // end of Polynomial
 std::shared_ptr<Polynomial> operator+(std::shared_ptr<Monomial> var1,
@@ -229,5 +262,12 @@ public:
   }
 
   bool checkDimCoupled(int dimIndex) { return (*_coupled)[dimIndex]; }
+  std::vector<int> getCur() {
+    std::vector<int> ret;
+    for (auto p : *_dimensionTable) {
+      ret.push_back(p->getCur());
+    }
+    return ret;
+  }
 }; // end of Tensor
 } // namespace WORKLOAD

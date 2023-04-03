@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+
 namespace ARCH {
 // decclare the network reuse type
 typedef enum { UNICAST, MULTICAST, SYSTOLIC, STATIONARY } NETWORKTYPE;
@@ -146,9 +147,9 @@ public:
 
     NETWORKTYPE networkType;
     networkType = classifyNetworkType(featureVec1);
-    if (networkType == STATIONARY) {
+    if (networkType == STATIONARY || networkType == UNICAST) {
       _networkSet->push_back(std::make_shared<Network>(featureVec1, rowNum,
-                                                       colNum, STATIONARY, 0));
+                                                       colNum, networkType, 0));
       _networkSet->push_back(std::make_shared<Network>(
           std::vector<int>{1, 0, 1}, rowNum, colNum, SYSTOLIC, bandWidth));
     } else {
@@ -162,7 +163,9 @@ public:
     NETWORKTYPE networkType1, networkType2;
     networkType1 = classifyNetworkType(featureVec1);
     networkType2 = classifyNetworkType(featureVec2);
-    if (networkType1 == STATIONARY) {
+    if (networkType1 == STATIONARY || networkType1 == UNICAST) {
+      // realize STAIONARY with UNICAST / SYSTOLIC
+      // realize UNICAST(reuse type) with UNICAST(physics) / SYSTOLIC
       assert(networkType2 != MULTICAST && networkType2 != STATIONARY);
       // SYSTOLIC UNICAST valid
       _networkSet->push_back(std::make_shared<Network>(
@@ -170,6 +173,7 @@ public:
       _networkSet->push_back(std::make_shared<Network>(
           featureVec2, rowNum, colNum, networkType2, bandWidth));
     } else if (networkType2 == STATIONARY) {
+      // realize STAIONARY with MULTICAST / SYSTOLIC
       assert(networkType1 != UNICAST);
       // SYSTOLIC MULTICAST valid
       _networkSet->push_back(std::make_shared<Network>(

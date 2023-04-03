@@ -109,7 +109,7 @@ int NetworkGroup::getInitOrOutDelay(
   } else {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
-    if (networkType1 == STATIONARY) {
+    if (networkType1 == STATIONARY || networkType1 == UNICAST) {
       // STATIONARY - SYSTOLIC UNICAST
       if (networkType2 == SYSTOLIC) {
         return (*_networkSet)[1]->getDelay(base, bitWidth) *
@@ -140,7 +140,8 @@ int NetworkGroup::getStableDelay(int base, int bitWidth) {
   } else {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
-    if (networkType1 == STATIONARY || networkType2 == STATIONARY) {
+    if (networkType1 == STATIONARY || networkType1 == UNICAST ||
+        networkType2 == STATIONARY) {
       return 0;
     } else {
       return std::max((*_networkSet)[0]->getDelay(base, bitWidth),

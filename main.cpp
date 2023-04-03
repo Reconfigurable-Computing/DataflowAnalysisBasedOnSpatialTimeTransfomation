@@ -4,6 +4,7 @@
 #include "include/datastruct/arch.h"
 #include "include/datastruct/mapping.h"
 #include "include/datastruct/workload.h"
+#include "include/util/debug.h"
 #include "include/util/eigenUtil.h"
 #include <assert.h>
 #include <iostream>
@@ -15,21 +16,21 @@
 #include <vector>
 typedef double valueType;
 struct Result {
-  int perPEVolumn[3]; // input weight output
-  int uniqueVolumn[3];
+  int uniqueVolumn[3]; // input weight output
   int totalVolumn[3];
   int reuseVolumn[3];
   int baseCycle;
   int baseData[3];
+  int delay;
   Result() {
     for (int i = 0; i < 3; i++) {
-      perPEVolumn[i] = 0;
       uniqueVolumn[i] = 0;
       totalVolumn[i] = 0;
       reuseVolumn[i] = 0;
       baseData[i] = 0;
     }
     baseCycle = 0;
+    delay = 0;
   }
 };
 class Analyzer {
@@ -50,6 +51,8 @@ private:
   std::shared_ptr<std::vector<std::vector<int>>> _reuseVecO;
   std::map<ARCH::DATATYPE, std::shared_ptr<std::vector<std::vector<int>>>>
       _reuseVecMap;
+  std::shared_ptr<WORKLOAD::Iterator> PEX;
+  std::shared_ptr<WORKLOAD::Iterator> PEY;
 
 public:
   Analyzer(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
@@ -65,6 +68,13 @@ public:
         _accessI(accessI), _accessW(accessW), _accessO(accessO),
         _lowerVarVec(lowerVarVec), _reuseVecI(reuseVecI), _reuseVecO(reuseVecO),
         _reuseVecW(reuseVecW) {
+    int colNum = _T.getColNum();
+    for (int i = 0; i < colNum; i++) {
+      if (_T(0, i) == 1)
+        PEX = _coupledVarVec[i];
+      if (_T(1, i) == 1)
+        PEY = _coupledVarVec[i];
+    }
     _result.baseCycle = baseCycle;
     for (int i = 0; i < 3; i++) {
       _result.baseData[i] = baseData[i];
@@ -72,12 +82,32 @@ public:
     _reuseVecMap[ARCH::INPUT] = _reuseVecI;
     _reuseVecMap[ARCH::WEIGHT] = _reuseVecW;
     _reuseVecMap[ARCH::OUTPUT] = _reuseVecO;
-    getComputationDelay();
-    accessAnalysis(ARCH::OUTPUT, _accessO);
-    accessAnalysis(ARCH::INPUT, _accessI);
-    accessAnalysis(ARCH::WEIGHT, _accessW);
-    getStableDelay(1);
+
+    int coupleVarNum = _coupledVarVec.size();
+    recursiveEdgeAnalysis(0, coupleVarNum, 0);
   }
+  void recursiveEdgeAnalysis(int index, int coupleVarNum, bool isEdge) {
+    if (index < coupleVarNum) {
+      if (_coupledVarVec[index]->hasEdge()) {
+        recursiveEdgeAnalysis(index + 1, coupleVarNum, isEdge);
+        _coupledVarVec[index]->setEdge();
+        recursiveEdgeAnalysis(index + 1, coupleVarNum, true);
+        _coupledVarVec[index]->unsetEdge();
+      } else {
+        recursiveEdgeAnalysis(index + 1, coupleVarNum, isEdge);
+      }
+    } else {
+      oneAnalysis(isEdge);
+    }
+  }
+
+  void oneAnalysis(bool isEdge) {
+    Result result;
+    getComputationDelay();
+    accessAnalysis(result, isEdge);
+    _result.delay += getStableDelay(1);
+  }
+
   std::pair<int, int> getTRange(int row) {
     int colNumT = _T.getColNum();
     std::shared_ptr<WORKLOAD::Polynomial> dim =
@@ -108,38 +138,24 @@ public:
 
     return totalActiveNum / activePENum;
   }
-
-  int getPerPEVolumn(MAPPING::Access &access) {
-    int rowNum = access.getRowNum();
-    int colNum = access.getColNum();
-    int oneAccessPointUniqueVolumn = 1;
-    // std::vector<std::shared_ptr<WORKLOAD::Polynomial>> dimSet;
-    int totalUniqueVolumn = 0;
-    for (int i = 0; i < rowNum; i++) {
-      std::shared_ptr<WORKLOAD::Polynomial> dim =
-          std::make_shared<WORKLOAD::Polynomial>();
-      for (int j = 0; j < colNum; j++) {
-        if (access(i, j) && _T(0, j) == 0 && _T(1, j) == 0)
-          dim = dim + access(i, j) * _coupledVarVec[j];
-      }
-      // dimSet.push_back(dim);
-      oneAccessPointUniqueVolumn *= dim->getSize();
-    }
-    return oneAccessPointUniqueVolumn;
+  int getPerPEVolumn(std::set<int> &innerTimeSet) {
+    PEX->lock();
+    PEY->lock();
+    int ret = getTimeSize(innerTimeSet);
+    PEX->unlock();
+    PEY->unlock();
+    return ret;
   }
+  int getInnerUniqueAccess(ARCH::DATATYPE dataType, MAPPING::Access &access,
+                           bool isEdge, std::set<int> &innerTimeSet,
+                           std::set<int> &outerTimeSet, Result &result) {
 
-  void accessAnalysis(ARCH::DATATYPE dataType, MAPPING::Access &access) {
-    int uniqueVolumn;
-    int totalVolumn = 1;
-    for (auto var : _coupledVarVec) {
-      totalVolumn *= var->getSize();
-    }
-    int reuseVolumn;
     ARCH::NETWORKTYPE networkType = _L1.getNetworkType(dataType);
-    int perPEVolumn = getPerPEVolumn(access);
     std::pair<int, int> PEXRange = getTRange(0);
     std::pair<int, int> PEYRange = getTRange(1);
+    int perPEVolumn = getPerPEVolumn(innerTimeSet);
     if (networkType == ARCH::SYSTOLIC || networkType == ARCH::MULTICAST) {
+
       std::vector<std::pair<int, int>> accessPointSet;
       _L1.getAccessPoint(dataType, accessPointSet);
       int activeAccessPointNum = 0;
@@ -151,20 +167,50 @@ public:
           activeAccessPointNum++;
         }
       }
-      uniqueVolumn = perPEVolumn * activeAccessPointNum;
-      reuseVolumn = totalVolumn - uniqueVolumn;
+      int uniqueVolumn = perPEVolumn * activeAccessPointNum;
+      return uniqueVolumn;
+    } else if (networkType == ARCH::STATIONARY) {
+      int uniqueVolumn = (PEYRange.second - PEYRange.first + 1) *
+                         (PEXRange.second - PEXRange.first + 1) * 1;
+      return uniqueVolumn;
     } else {
-      uniqueVolumn = (PEYRange.second - PEYRange.first + 1) *
-                     (PEXRange.second - PEXRange.first + 1) * perPEVolumn;
-      reuseVolumn = totalVolumn - uniqueVolumn;
+      int uniqueVolumn = (PEYRange.second - PEYRange.first + 1) *
+                         (PEXRange.second - PEXRange.first + 1) * perPEVolumn;
+      return uniqueVolumn;
     }
-    _result.perPEVolumn[dataType] = perPEVolumn;
-    _result.uniqueVolumn[dataType] = uniqueVolumn;
-    _result.reuseVolumn[dataType] = reuseVolumn;
-    _result.totalVolumn[dataType] = totalVolumn;
+  }
+  void accessAnalysis(Result &result, bool isEdge) {
+    std::set<int> innerTimeSet;
+    std::set<int> outerTimeSet;
+    getInnerOuterTimeSet(innerTimeSet, outerTimeSet);
+    int innerTimeSize = getTimeSize(innerTimeSet);
+    int outerTimeSize = getTimeSize(outerTimeSet);
+    int totalVolumn = 1;
+    for (auto var : _coupledVarVec) {
+      totalVolumn *= var->getSize();
+    }
+
+    result.uniqueVolumn[ARCH::OUTPUT] = getInnerUniqueAccess(
+        ARCH::OUTPUT, _accessO, isEdge, innerTimeSet, outerTimeSet, result);
+    result.uniqueVolumn[ARCH::INPUT] = getInnerUniqueAccess(
+        ARCH::INPUT, _accessI, isEdge, innerTimeSet, outerTimeSet, result);
+    result.uniqueVolumn[ARCH::WEIGHT] = getInnerUniqueAccess(
+        ARCH::WEIGHT, _accessW, isEdge, innerTimeSet, outerTimeSet, result);
+    result.uniqueVolumn[ARCH::OUTPUT] *= outerTimeSize;
+    result.uniqueVolumn[ARCH::INPUT] *= outerTimeSize;
+    result.uniqueVolumn[ARCH::WEIGHT] *= outerTimeSize;
+    result.totalVolumn[ARCH::OUTPUT] = totalVolumn;
+    result.totalVolumn[ARCH::INPUT] = totalVolumn;
+    result.totalVolumn[ARCH::WEIGHT] = totalVolumn;
+    result.reuseVolumn[ARCH::OUTPUT] =
+        totalVolumn - result.uniqueVolumn[ARCH::OUTPUT];
+    result.reuseVolumn[ARCH::INPUT] =
+        totalVolumn - result.uniqueVolumn[ARCH::INPUT];
+    result.reuseVolumn[ARCH::WEIGHT] =
+        totalVolumn - result.uniqueVolumn[ARCH::WEIGHT];
   }
 
-  bool checkValidInnerVar(int varIndex, ARCH::DATATYPE dataType) {
+  bool checkValidInnerDim(int varIndex, ARCH::DATATYPE dataType) {
     std::shared_ptr<std::vector<std::vector<int>>> reuseVecSet =
         _reuseVecMap[dataType];
     int m = (*reuseVecSet).size();
@@ -193,7 +239,7 @@ public:
     int coupleVarNum = _coupledVarVec.size();
     if (flag) {
       for (int i = 2; i < coupleVarNum; i++) {
-        if (checkValidInnerVar(i, dataType)) {
+        if (checkValidInnerDim(i, dataType)) {
           singleDataTypeSet.insert(i);
         } else {
           break;
@@ -206,7 +252,8 @@ public:
     }
   }
 
-  void getInnerTime(std::set<int> &innerTimeSet) {
+  void getInnerOuterTimeSet(std::set<int> &innerTimeSet,
+                            std::set<int> &outerTimeSet) {
     int coupleVarNum = _coupledVarVec.size();
     int inputIfStationary = _L1.checkIfStationary(ARCH::INPUT);
     int weightIfStationary = _L1.checkIfStationary(ARCH::WEIGHT);
@@ -222,6 +269,11 @@ public:
         innerTimeSet.insert(i);
       } else {
         break;
+      }
+    }
+    for (int i = 2; i < coupleVarNum; i++) {
+      if (!innerTimeSet.count(i)) {
+        outerTimeSet.insert(i);
       }
     }
   }
@@ -256,15 +308,10 @@ public:
     int coupleVarNum = _coupledVarVec.size();
     std::set<int> innerTimeSet;
     std::set<int> outerTimeSet;
-    getInnerTime(innerTimeSet);
-    for (int i = 2; i < coupleVarNum; i++) {
-      if (!innerTimeSet.count(i)) {
-        outerTimeSet.insert(i);
-      }
-    }
-    int delay;
+    getInnerOuterTimeSet(innerTimeSet, outerTimeSet);
     int innerTimeSize = getTimeSize(innerTimeSet);
     int outerTimeSize = getTimeSize(outerTimeSet);
+    int delay;
     if (lowestFlag == 1 || doubleBufferFlag == 0) {
       delay =
           innerTimeSize * stableDelay +
@@ -286,6 +333,18 @@ public:
 
 int main() {
 
+  // rank
+  // c1 c2   c1 outer than c2
+  // pedim only one
+  // MAPPING::Transform T(4, std::make_shared<std::vector<int>>(
+  //    std::vector<int>{1,0,0,0
+  //    ,0,1,0,0
+  //    ,1,1,1,0
+  //    ,0,0,0,1}));
+  // MAPPING::Transform T(3, std::make_shared<std::vector<int>>(
+  //    std::vector<int>{1, 0, 0
+  //    , 0, 1, 0
+  //    , 1, 1, 1}));
   MAPPING::Transform T(
       6, std::make_shared<std::vector<int>>(std::vector<int>{
              1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0,
@@ -300,35 +359,60 @@ int main() {
   L1.appendNetworkGroup(32, 16, ARCH::OUTPUT, 16, {0, 0, 1});
 
   std::shared_ptr<WORKLOAD::Iterator> k =
-      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, {'k'}));
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, "k"));
   std::shared_ptr<WORKLOAD::Iterator> c =
-      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 4, {'c'}));
-  std::shared_ptr<WORKLOAD::Iterator> y = std::make_shared<WORKLOAD::Iterator>(
-      WORKLOAD::Iterator(0, 31, 0, 5, {'y'}));
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 10, "c"));
+  std::shared_ptr<WORKLOAD::Iterator> c2 =
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, "c2"));
+  std::shared_ptr<WORKLOAD::Iterator> c1 = std::make_shared<WORKLOAD::Iterator>(
+      WORKLOAD::Iterator(0, 1, 0, 2, c2, "c1"));
+  std::shared_ptr<WORKLOAD::Iterator> y =
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 10, "y"));
+  std::shared_ptr<WORKLOAD::Iterator> y2 =
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 5, "y2"));
+  std::shared_ptr<WORKLOAD::Iterator> y1 = std::make_shared<WORKLOAD::Iterator>(
+      WORKLOAD::Iterator(0, 5, 0, 4, y2, "y1"));
   std::shared_ptr<WORKLOAD::Iterator> x =
-      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 2, {'x'}));
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 2, "x"));
   std::shared_ptr<WORKLOAD::Iterator> p =
-      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, {'p'}));
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, "p"));
   std::shared_ptr<WORKLOAD::Iterator> q =
-      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, {'q'}));
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, "q"));
   WORKLOAD::Tensor I("I");
   WORKLOAD::Tensor W("W");
   WORKLOAD::Tensor O("O");
-  I[c][y + p][x + q];
+  // I[c1 * 4 + c2] [y1 * 6 + y2 + p][x + q];
+  // W[k] [c1 * 4 + c2][ p] [q];
+  // O[k][y1 * 6 + y2][ x];
+  // I[c][y1 * 6 + y2 + p][x + q];
+  // W[k][c][p][q];
+  // O[k][y1 * 6 + y2][x];
+  I[c][y][x + q];
   W[k][c][p][q];
   O[k][y][x];
-
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> upperVarVec;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> lowerVarVec;
+  // coupledVarVec.push_back(k);
+  // coupledVarVec.push_back(x);
+  // coupledVarVec.push_back(c2);
+  // coupledVarVec.push_back(c1);
   coupledVarVec.push_back(k);
   coupledVarVec.push_back(x);
   coupledVarVec.push_back(c);
   coupledVarVec.push_back(p);
-  coupledVarVec.push_back(y);
   coupledVarVec.push_back(q);
+  coupledVarVec.push_back(y);
+  // coupledVarVec.push_back(k);
+  // coupledVarVec.push_back(x);
+  // coupledVarVec.push_back(c);
+  // coupledVarVec.push_back(p);
+  // coupledVarVec.push_back(y);
+  // coupledVarVec.push_back(q);
   lowerVarVec.push_back(y);
   lowerVarVec.push_back(q);
+
+  getTimeLine(coupledVarVec, T, I, W, O);
 
   std::cout << I.getRange(1).first << ' ' << I.getRange(1).second << std::endl;
   I.bindVar(coupledVarVec);
