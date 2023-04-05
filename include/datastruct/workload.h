@@ -1,5 +1,6 @@
 #pragma once
 
+#include <assert.h>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -13,6 +14,7 @@ private:
   bool _lock;
   bool _hasEdge;
   bool _edgeFlag;
+  bool _isEdgeChild;
   int _edgeLowBound;
   int _edgeUpBound;
   int _cur;
@@ -23,13 +25,17 @@ public:
   Iterator(int lowBound, int upBound, std::string sym)
       : _lowBound(lowBound), _upBound(upBound), _sym(sym), _lock(false),
         _hasEdge(false), _edgeFlag(false), _edgeLowBound(0), _edgeUpBound(0),
-        _cur(0) {}
+        _cur(lowBound), _isEdgeChild(false) {}
   Iterator(int lowBound, int upBound, int edgeLowBound, int EdgeUpBound,
-           std::shared_ptr<Iterator> _coupledIterator, std::string sym)
+           std::shared_ptr<Iterator> coupledIterator, std::string sym)
       : _lowBound(lowBound), _upBound(upBound), _sym(sym), _lock(false),
-        _hasEdge(true), _edgeFlag(false), _edgeLowBound(edgeLowBound),
-        _edgeUpBound(EdgeUpBound), _coupledIterator(_coupledIterator), _cur(0) {
+        _hasEdge(true), _edgeFlag(false), _isEdgeChild(false),
+        _edgeLowBound(edgeLowBound), _edgeUpBound(EdgeUpBound),
+        _coupledIterator(coupledIterator), _cur(lowBound) {
+    assert(!_isEdgeChild);
+    _coupledIterator->setIsEdgeChild();
   }
+  void setIsEdgeChild() { _isEdgeChild = true; }
   std::string to_string() {
     std::string ret;
     ret += "var:\t" + _sym + "\tlow\t" + std::to_string(_lowBound) + "\tup\t" +
@@ -72,15 +78,26 @@ public:
     edgeSwap();
   }
   bool hasEdge() { return _hasEdge; }
-
+  void reset() { _cur = 0; }
   void getNext() {
     if (isTop()) {
-      _cur = 0;
+      _cur = _lowBound;
+      if (_hasEdge) {
+        unsetEdge();
+      }
     } else {
       _cur++;
+      if (_hasEdge && isTop()) {
+        setEdge();
+      }
     }
   }
-  bool isTop() { return _cur == getUpBound(); }
+  bool isTop() {
+    if (_hasEdge)
+      return _cur == _upBound + 1;
+    else
+      return _cur == _upBound;
+  }
   int getCur() { return _cur; }
 
 }; // end of Iterator
