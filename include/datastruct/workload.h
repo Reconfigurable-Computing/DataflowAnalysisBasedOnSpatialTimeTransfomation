@@ -26,15 +26,23 @@ public:
       : _lowBound(lowBound), _upBound(upBound), _sym(sym), _lock(false),
         _hasEdge(false), _edgeFlag(false), _edgeLowBound(0), _edgeUpBound(0),
         _cur(lowBound), _isEdgeChild(false) {}
-  Iterator(int lowBound, int upBound, int edgeLowBound, int EdgeUpBound,
-           std::shared_ptr<Iterator> coupledIterator, std::string sym)
+
+  Iterator(int lowBound, int upBound, std::shared_ptr<Iterator> coupledIterator,
+           std::string sym)
       : _lowBound(lowBound), _upBound(upBound), _sym(sym), _lock(false),
         _hasEdge(true), _edgeFlag(false), _isEdgeChild(false),
-        _edgeLowBound(edgeLowBound), _edgeUpBound(EdgeUpBound),
-        _coupledIterator(coupledIterator), _cur(lowBound) {
+        _coupledIterator(coupledIterator), _cur(lowBound), _edgeLowBound(0),
+        _edgeUpBound(0) {
     assert(!_isEdgeChild);
     _coupledIterator->setIsEdgeChild();
   }
+
+  Iterator(int lowBound, int upBound, int edgeLowBound, int edgeUpBound,
+           std::string sym)
+      : _lowBound(lowBound), _upBound(upBound), _sym(sym), _lock(false),
+        _hasEdge(false), _edgeFlag(false), _isEdgeChild(false), _cur(lowBound),
+        _edgeLowBound(edgeLowBound), _edgeUpBound(edgeUpBound) {}
+
   void setIsEdgeChild() { _isEdgeChild = true; }
   std::string to_string() {
     std::string ret;
@@ -63,19 +71,20 @@ public:
     return _lock ? 0 : (_edgeFlag ? 1 : (_upBound - _lowBound + 1));
   }
   void edgeSwap() {
-    int tmpLowBound = _coupledIterator->getLowBound();
-    int tmpUpBound = _coupledIterator->getUpBound();
-    _coupledIterator->setBound(_edgeLowBound, _edgeUpBound);
-    _edgeLowBound = tmpLowBound;
-    _edgeUpBound = tmpUpBound;
+    std::swap(_edgeLowBound, _lowBound);
+    std::swap(_edgeUpBound, _upBound);
   }
   void setEdge() {
-    _edgeFlag = true;
-    edgeSwap();
+    if (!_edgeFlag) {
+      _edgeFlag = true;
+      _coupledIterator->edgeSwap();
+    }
   }
   void unsetEdge() {
-    _edgeFlag = false;
-    edgeSwap();
+    if (_edgeFlag) {
+      _edgeFlag = false;
+      _coupledIterator->edgeSwap();
+    }
   }
   bool hasEdge() { return _hasEdge; }
   void reset() { _cur = 0; }

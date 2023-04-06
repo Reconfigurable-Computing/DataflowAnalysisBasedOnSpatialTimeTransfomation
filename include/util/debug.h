@@ -34,6 +34,7 @@ class Generator {
   WORKLOAD::Tensor &_I;
   WORKLOAD::Tensor &_W;
   WORKLOAD::Tensor &_O;
+  int _count;
 
 public:
   Generator(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
@@ -41,7 +42,7 @@ public:
             std::shared_ptr<WORKLOAD::Iterator> PEY, MAPPING::Transform &T,
             WORKLOAD::Tensor &I, WORKLOAD::Tensor &W, WORKLOAD::Tensor &O)
       : _coupledVarVec(coupledVarVec), _PEX(PEX), _PEY(PEY), _T(T), _O(O),
-        _W(W), _I(I) {}
+        _W(W), _I(I), _count(0) {}
 
   void getNext() {
     int coupledVarVecNum = _coupledVarVec.size();
@@ -163,7 +164,8 @@ public:
       } else {
         outfile << std::endl;
         curTime = _timeline[i]->_time;
-        outfile << "time\t";
+        outfile << std::to_string(_count) + " time\t";
+        _count++;
         for (auto t : curTime) {
           outfile << t << ' ';
         }

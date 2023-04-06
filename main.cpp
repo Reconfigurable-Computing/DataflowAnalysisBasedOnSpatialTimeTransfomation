@@ -52,16 +52,16 @@ int main() {
       std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, "k"));
   std::shared_ptr<WORKLOAD::Iterator> c =
       std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 10, "c"));
-  std::shared_ptr<WORKLOAD::Iterator> c2 =
-      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 3, "c2"));
-  std::shared_ptr<WORKLOAD::Iterator> c1 = std::make_shared<WORKLOAD::Iterator>(
-      WORKLOAD::Iterator(0, 1, 0, 2, c2, "c1"));
+  std::shared_ptr<WORKLOAD::Iterator> c2 = std::make_shared<WORKLOAD::Iterator>(
+      WORKLOAD::Iterator(0, 3, 0, 2, "c2"));
+  std::shared_ptr<WORKLOAD::Iterator> c1 =
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 1, c2, "c1"));
   std::shared_ptr<WORKLOAD::Iterator> y =
       std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 10, "y"));
-  std::shared_ptr<WORKLOAD::Iterator> y2 =
-      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 5, "y2"));
-  std::shared_ptr<WORKLOAD::Iterator> y1 = std::make_shared<WORKLOAD::Iterator>(
-      WORKLOAD::Iterator(0, 5, 0, 4, y2, "y1"));
+  std::shared_ptr<WORKLOAD::Iterator> y2 = std::make_shared<WORKLOAD::Iterator>(
+      WORKLOAD::Iterator(0, 5, 0, 4, "y2"));
+  std::shared_ptr<WORKLOAD::Iterator> y1 =
+      std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 5, y2, "y1"));
   std::shared_ptr<WORKLOAD::Iterator> x =
       std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 2, "x"));
   std::shared_ptr<WORKLOAD::Iterator> p =
@@ -87,11 +87,19 @@ int main() {
   // coupledVarVec.push_back(x);
   // coupledVarVec.push_back(c2);
   // coupledVarVec.push_back(c1);
+
+  // coupledVarVec.push_back(k);
+  // coupledVarVec.push_back(x);
+  // coupledVarVec.push_back(y);
+  // coupledVarVec.push_back(q);
+  // coupledVarVec.push_back(c2);
+  // coupledVarVec.push_back(c1);
+
   coupledVarVec.push_back(k);
   coupledVarVec.push_back(x);
+  coupledVarVec.push_back(y);
   coupledVarVec.push_back(c2);
   coupledVarVec.push_back(c1);
-  coupledVarVec.push_back(p);
   coupledVarVec.push_back(q);
 
   // coupledVarVec.push_back(k);
@@ -104,7 +112,7 @@ int main() {
   lowerVarVec.push_back(y);
   lowerVarVec.push_back(q);
 
-  // getTimeLine(coupledVarVec, T, I, W, O);
+  getTimeLine(coupledVarVec, T, I, W, O);
 
   std::cout << I.getRange(1).first << ' ' << I.getRange(1).second << std::endl;
   I.bindVar(coupledVarVec);
