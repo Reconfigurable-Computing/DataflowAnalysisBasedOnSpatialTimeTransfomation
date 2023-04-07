@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 namespace WORKLOAD {
@@ -67,6 +68,7 @@ public:
   int getUpBound() { return _lock ? 0 : (_edgeFlag ? _upBound + 1 : _upBound); }
   void lock() { _lock = true; }
   void unlock() { _lock = false; }
+  bool islock() { return _lock; }
   int getSize() {
     return _lock ? 0 : (_edgeFlag ? 1 : (_upBound - _lowBound + 1));
   }
@@ -207,6 +209,17 @@ public:
     }
     return 0;
   }
+
+  std::vector<std::shared_ptr<WORKLOAD::Iterator>> getVarVec() {
+    std::vector<std::shared_ptr<WORKLOAD::Iterator>> ret;
+    for (auto m : *_monomialSet) {
+      auto var = m->getVar();
+      if (!var->islock()) {
+        ret.push_back(m->getVar());
+      }
+    }
+    return ret;
+  }
   int getCur() {
     int ret = 0;
     for (auto m : *_monomialSet) {
@@ -236,6 +249,46 @@ private:
   std::shared_ptr<std::vector<std::shared_ptr<Polynomial>>> _dimensionTable;
   std::string _sym;
   std::shared_ptr<std::vector<int>> _coupled;
+  void generateEdgeState(
+      std::vector<std::vector<int>> &state,
+      std::vector<std::shared_ptr<WORKLOAD::Iterator>> &curSubCoupledVarVec) {
+
+    for (auto var : curSubCoupledVarVec) {
+      int len = state.size();
+      if (var->hasEdge()) {
+        if (len == 0) {
+          state.push_back({0});
+          state.push_back({1});
+        } else {
+          for (int i = 0; i < len; i++) {
+            state.push_back(state[i]);
+          }
+          for (int i = 0; i < len; i++) {
+            state[i].push_back(1);
+          }
+          for (int i = len; i < 2 * len; i++) {
+            state[i].push_back(0);
+          }
+        }
+      } else {
+        if (len == 0) {
+          state.push_back({0});
+        } else {
+          for (int i = 0; i < len; i++) {
+            state[i].push_back(0);
+          }
+        }
+      }
+    }
+  }
+  int compOneStateVolumn() {
+    int ret = 1;
+    for (auto dim : *_dimensionTable) {
+      auto range = dim->getRange();
+      ret *= (range.second - range.first + 1);
+    }
+    return ret;
+  }
 
 public:
   Tensor() {
@@ -287,11 +340,66 @@ public:
     }
   }
 
+  int getCoupledDimNum() {
+    int ret = 0;
+    int dimNum = _dimensionTable->size();
+    for (int i = 0; i < dimNum; i++) {
+      if (checkDimCoupled(i)) {
+        ret++;
+      }
+    }
+    return ret;
+  }
   bool checkDimCoupled(int dimIndex) { return (*_coupled)[dimIndex]; }
   std::vector<int> getCur() {
     std::vector<int> ret;
-    for (auto p : *_dimensionTable) {
-      ret.push_back(p->getCur());
+    int dimNum = _dimensionTable->size();
+    for (int i = 0; i < dimNum; i++) {
+      if (checkDimCoupled(i)) {
+        ret.push_back((*_dimensionTable)[i]->getCur());
+      }
+    }
+    return ret;
+  }
+
+  int getVolumn() {
+    std::set<std::shared_ptr<WORKLOAD::Iterator>> varSet;
+    for (auto dim : *_dimensionTable) {
+      auto oneDimVarVec = dim->getVarVec();
+      for (auto var : oneDimVarVec) {
+        if (!varSet.count(var)) {
+          varSet.insert(var);
+        }
+      }
+    }
+    std::vector<std::shared_ptr<WORKLOAD::Iterator>> varVec;
+    for (auto it = varSet.begin(); it != varSet.end(); it++) {
+      varVec.push_back(*it);
+    }
+    std::vector<std::vector<int>> state;
+    generateEdgeState(state, varVec);
+
+    int stateNum = state.size();
+    int varNum = varVec.size();
+    int ret = 0;
+    if (stateNum == 0) {
+      return 1;
+    } else {
+      for (int i = 0; i < stateNum; i++) {
+        for (int j = 0; j < varNum; j++) {
+          if (state[i][j]) {
+            varVec[j]->setEdge();
+          }
+        }
+
+        ret += compOneStateVolumn();
+
+        for (int j = 0; j < varNum; j++) {
+          if (state[i][j]) {
+            varVec[j]->unsetEdge();
+          }
+        }
+      }
     }
     return ret;
   }

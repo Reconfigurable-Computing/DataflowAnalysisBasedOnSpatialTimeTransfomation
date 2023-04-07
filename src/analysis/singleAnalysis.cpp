@@ -1,13 +1,12 @@
 #include "include/analysis/singleAnalysis.h"
 
 void Analyzer::oneAnalysis() {
-  Result result;
   getComputationDelay();
   accessAnalysis();
-  getStableDelay();
+  delayAnalysis();
 }
 
-std::pair<int, int> Analyzer::getTRange(int row) {
+std::pair<int, int> Analyzer::compTRange(int row) {
   int colNumT = _T.getColNum();
   std::shared_ptr<WORKLOAD::Polynomial> dim =
       std::make_shared<WORKLOAD::Polynomial>();
@@ -20,8 +19,8 @@ std::pair<int, int> Analyzer::getTRange(int row) {
 }
 
 int Analyzer::getActivePENum() {
-  std::pair<int, int> PEXRange = getTRange(0);
-  std::pair<int, int> PEYRange = getTRange(1);
+  std::pair<int, int> PEXRange = compTRange(0);
+  std::pair<int, int> PEYRange = compTRange(1);
   return (PEYRange.second - PEYRange.first + 1) *
          (PEXRange.second - PEXRange.first + 1);
 }
@@ -37,28 +36,28 @@ int Analyzer::getComputationDelay() {
 
   return totalActiveNum / activePENum;
 }
-int Analyzer::getPerPEVolumn(std::vector<int> &innerTimeVec) {
+int Analyzer::compPerPEVolumn(std::vector<int> &innerTimeVec) {
   PEX->lock();
   PEY->lock();
-  int ret = getTimeSize(innerTimeVec);
+  int ret = compTimeSize(innerTimeVec);
   PEX->unlock();
   PEY->unlock();
   return ret;
 }
-void Analyzer::getInnerUniqueAccess(ARCH::DATATYPE dataType,
-                                    MAPPING::Access &access,
-                                    std::vector<int> &innerTimeVec,
-                                    int outerTimeSize) {
-  ARCH::NETWORKTYPE networkType = _L1.getNetworkType(dataType);
-  std::pair<int, int> PEXRange = getTRange(0);
-  std::pair<int, int> PEYRange = getTRange(1);
-  int perPEVolumn = getPerPEVolumn(innerTimeVec);
+void Analyzer::compInnerUniqueAccess(ARCH::DATATYPE dataType,
+                                     MAPPING::Access &access,
+                                     std::vector<int> &innerTimeVec,
+                                     int outerTimeSize) {
+  ARCH::NETWORKTYPE networkType = _L.getNetworkType(dataType);
+  std::pair<int, int> PEXRange = compTRange(0);
+  std::pair<int, int> PEYRange = compTRange(1);
+  int perPEVolumn = compPerPEVolumn(innerTimeVec);
   perPEVolumn *= _result.baseData[dataType];
   int uniqueVolumn;
   if (networkType == ARCH::SYSTOLIC || networkType == ARCH::MULTICAST) {
 
     std::vector<std::pair<int, int>> accessPointSet;
-    _L1.getAccessPoint(dataType, accessPointSet);
+    _L.getAccessPoint(dataType, accessPointSet);
     int activeAccessPointNum = 0;
     for (auto accessPoint : accessPointSet) {
       if (accessPoint.first >= PEXRange.first &&
@@ -90,9 +89,9 @@ void Analyzer::getInnerUniqueAccess(ARCH::DATATYPE dataType,
 void Analyzer::oneStateAccessAnalysis(std::vector<int> &innerTimeVec,
                                       int outerTimeSize) {
 
-  getInnerUniqueAccess(ARCH::OUTPUT, _accessO, innerTimeVec, outerTimeSize);
-  getInnerUniqueAccess(ARCH::INPUT, _accessI, innerTimeVec, outerTimeSize);
-  getInnerUniqueAccess(ARCH::WEIGHT, _accessW, innerTimeVec, outerTimeSize);
+  compInnerUniqueAccess(ARCH::OUTPUT, _accessO, innerTimeVec, outerTimeSize);
+  compInnerUniqueAccess(ARCH::INPUT, _accessI, innerTimeVec, outerTimeSize);
+  compInnerUniqueAccess(ARCH::WEIGHT, _accessW, innerTimeVec, outerTimeSize);
 }
 void Analyzer::generateVarIndexVec(std::vector<int> &timeVec,
                                    std::vector<int> &varIndexVec) {
@@ -107,7 +106,7 @@ void Analyzer::generateVarIndexVec(std::vector<int> &timeVec,
 void Analyzer::accessAnalysis() {
   std::vector<int> innerTimeVec;
   std::vector<int> outerTimeVec;
-  getInnerOuterTimeVec(innerTimeVec, outerTimeVec);
+  constructInnerOuterTimeVec(innerTimeVec, outerTimeVec);
 
   std::vector<int> outerVarIndexVec;
   generateVarIndexVec(outerTimeVec, outerVarIndexVec);
@@ -128,7 +127,7 @@ void Analyzer::accessAnalysis() {
       }
       PEX->lock();
       PEY->lock();
-      int outerTimeSize = getOneStateTimeSize(outerTimeVec);
+      int outerTimeSize = compOneStateTimeSize(outerTimeVec);
       PEX->unlock();
       PEY->unlock();
       oneStateAccessAnalysis(innerTimeVec, outerTimeSize);
@@ -165,9 +164,9 @@ bool Analyzer::checkValidInnerDim(int varIndex, ARCH::DATATYPE dataType) {
   }
   return false;
 }
-void Analyzer::constructSingleDataTypeSet(int flag,
-                                          std::set<int> &singleDataTypeSet,
-                                          ARCH::DATATYPE dataType) {
+void Analyzer::constructSingleDataTypeTimeSet(int flag,
+                                              std::set<int> &singleDataTypeSet,
+                                              ARCH::DATATYPE dataType) {
   int coupleVarNum = _coupledVarVec.size();
   if (flag) {
     for (int i = 2; i < coupleVarNum; i++) {
@@ -184,18 +183,18 @@ void Analyzer::constructSingleDataTypeSet(int flag,
   }
 }
 
-void Analyzer::getInnerOuterTimeVec(std::vector<int> &innerTimeVec,
-                                    std::vector<int> &outerTimeVec) {
+void Analyzer::constructInnerOuterTimeVec(std::vector<int> &innerTimeVec,
+                                          std::vector<int> &outerTimeVec) {
   int coupleVarNum = _coupledVarVec.size();
-  int inputIfStationary = _L1.checkIfStationary(ARCH::INPUT);
-  int weightIfStationary = _L1.checkIfStationary(ARCH::WEIGHT);
-  int outputIfStationary = _L1.checkIfStationary(ARCH::OUTPUT);
+  int inputIfStationary = _L.checkIfStationary(ARCH::INPUT);
+  int weightIfStationary = _L.checkIfStationary(ARCH::WEIGHT);
+  int outputIfStationary = _L.checkIfStationary(ARCH::OUTPUT);
   std::set<int> inputSet;
   std::set<int> weightSet;
   std::set<int> outputSet;
-  constructSingleDataTypeSet(inputIfStationary, inputSet, ARCH::INPUT);
-  constructSingleDataTypeSet(weightIfStationary, weightSet, ARCH::WEIGHT);
-  constructSingleDataTypeSet(outputIfStationary, outputSet, ARCH::OUTPUT);
+  constructSingleDataTypeTimeSet(inputIfStationary, inputSet, ARCH::INPUT);
+  constructSingleDataTypeTimeSet(weightIfStationary, weightSet, ARCH::WEIGHT);
+  constructSingleDataTypeTimeSet(outputIfStationary, outputSet, ARCH::OUTPUT);
   std::set<int> innerTimeSet;
   std::set<int> outerTimeSet;
   for (int i = 2; i < coupleVarNum; i++) {
@@ -249,17 +248,17 @@ void Analyzer::generateEdgeState(std::vector<std::vector<int>> &state,
   }
 }
 
-int Analyzer::getOneStateTimeSize(std::vector<int> &timeVec) {
+int Analyzer::compOneStateTimeSize(std::vector<int> &timeVec) {
   std::pair<int, int> timeRange;
   int timeSize = 1;
   for (auto timeIndex : timeVec) {
-    timeRange = getTRange(timeIndex);
+    timeRange = compTRange(timeIndex);
     timeSize *= timeRange.second - timeRange.first + 1;
   }
   return timeSize;
 }
 
-int Analyzer::getTimeSize(std::vector<int> &timeVec) {
+int Analyzer::compTimeSize(std::vector<int> &timeVec) {
   std::vector<int> innerVarIndexVec;
   generateVarIndexVec(timeVec, innerVarIndexVec);
   std::vector<std::vector<int>> state;
@@ -277,7 +276,7 @@ int Analyzer::getTimeSize(std::vector<int> &timeVec) {
       }
     }
 
-    ret += getOneStateTimeSize(timeVec);
+    ret += compOneStateTimeSize(timeVec);
 
     for (int j = 0; j < innerVarNum; j++) {
       if (state[i][j]) {
@@ -288,26 +287,26 @@ int Analyzer::getTimeSize(std::vector<int> &timeVec) {
   return ret;
 }
 
-int Analyzer::getOneStateStableDelay(std::vector<int> innerTimeVec) {
+int Analyzer::compOneStateStableDelay(std::vector<int> innerTimeVec) {
   int doubleBufferFlag = 1;
   int lowestFlag = 1;
-  std::pair<int, int> PEXRange = getTRange(0);
-  std::pair<int, int> PEYRange = getTRange(1);
-  int inputStableDelay = _L1.getStableDelay(ARCH::INPUT, 1, 16);
-  int weightStableDelay = _L1.getStableDelay(ARCH::WEIGHT, 1, 16);
-  int outputStableDelay = _L1.getStableDelay(ARCH::OUTPUT, 1, 16);
+  std::pair<int, int> PEXRange = compTRange(0);
+  std::pair<int, int> PEYRange = compTRange(1);
+  int inputStableDelay = _L.getStableDelay(ARCH::INPUT, 1, 16);
+  int weightStableDelay = _L.getStableDelay(ARCH::WEIGHT, 1, 16);
+  int outputStableDelay = _L.getStableDelay(ARCH::OUTPUT, 1, 16);
   int inputInitDelay =
-      _L1.getInitOrOutDelay(ARCH::INPUT, 1, 16, PEXRange, PEYRange);
+      _L.getInitOrOutDelay(ARCH::INPUT, 1, 16, PEXRange, PEYRange);
   int weightInitDelay =
-      _L1.getInitOrOutDelay(ARCH::WEIGHT, 1, 16, PEXRange, PEYRange);
+      _L.getInitOrOutDelay(ARCH::WEIGHT, 1, 16, PEXRange, PEYRange);
   int outputOutDelay =
-      _L1.getInitOrOutDelay(ARCH::OUTPUT, 1, 16, PEXRange, PEYRange);
+      _L.getInitOrOutDelay(ARCH::OUTPUT, 1, 16, PEXRange, PEYRange);
   int stableDelay =
       std::max(std::max(std::max(inputStableDelay, weightStableDelay),
                         outputStableDelay),
                _result.baseCompCycle);
   int coupleVarNum = _coupledVarVec.size();
-  int innerTimeSize = getTimeSize(innerTimeVec);
+  int innerTimeSize = compTimeSize(innerTimeVec);
   if (lowestFlag == 1 || doubleBufferFlag == 0) {
     return innerTimeSize * stableDelay +
            std::max(std::max(inputInitDelay, weightInitDelay), outputOutDelay);
@@ -319,10 +318,10 @@ int Analyzer::getOneStateStableDelay(std::vector<int> innerTimeVec) {
   }
 }
 
-void Analyzer::getStableDelay() {
+void Analyzer::delayAnalysis() {
   std::vector<int> innerTimeVec;
   std::vector<int> outerTimeVec;
-  getInnerOuterTimeVec(innerTimeVec, outerTimeVec);
+  constructInnerOuterTimeVec(innerTimeVec, outerTimeVec);
 
   std::vector<int> outerVarIndexVec;
   generateVarIndexVec(outerTimeVec, outerVarIndexVec);
@@ -332,7 +331,7 @@ void Analyzer::getStableDelay() {
   int stateNum = state.size();
   int innerVarNum = outerVarIndexVec.size();
   if (stateNum == 0) {
-    _result.delay = getOneStateStableDelay(innerTimeVec);
+    _result.delay = compOneStateStableDelay(innerTimeVec);
   } else {
     for (int i = 0; i < stateNum; i++) {
       for (int j = 0; j < innerVarNum; j++) {
@@ -340,8 +339,8 @@ void Analyzer::getStableDelay() {
           _coupledVarVec[outerVarIndexVec[j]]->setEdge();
         }
       }
-      int outerTimeSize = getOneStateTimeSize(outerTimeVec);
-      _result.delay += outerTimeSize * getOneStateStableDelay(innerTimeVec);
+      int outerTimeSize = compOneStateTimeSize(outerTimeVec);
+      _result.delay += outerTimeSize * compOneStateStableDelay(innerTimeVec);
       for (int j = 0; j < innerVarNum; j++) {
         if (state[i][j]) {
           _coupledVarVec[outerVarIndexVec[j]]->unsetEdge();

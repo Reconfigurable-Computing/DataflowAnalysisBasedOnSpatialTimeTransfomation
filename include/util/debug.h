@@ -146,6 +146,11 @@ public:
     std::vector<int> curTime = _timeline[0]->_time;
     curTime[0] = -1;
     int timeLineLen = _timeline.size();
+
+    int weightCoupledDimNum = _W.getCoupledDimNum();
+    int outputCoupledDimNum = _O.getCoupledDimNum();
+    int inputCoupledDimNum = _I.getCoupledDimNum();
+
     for (int i = 0; i < timeLineLen;) {
       if (isTimeEq(curTime, _timeline[i]->_time)) {
         for (int j = 0; j < PEXMAX; j++) {
@@ -155,7 +160,8 @@ public:
               outfile << "    ";
               i++;
             } else {
-              displayLine(j, k, 3, 3, 4, outfile);
+              displayLine(j, k, outputCoupledDimNum, inputCoupledDimNum,
+                          weightCoupledDimNum, outfile);
               outfile << "    ";
             }
           }

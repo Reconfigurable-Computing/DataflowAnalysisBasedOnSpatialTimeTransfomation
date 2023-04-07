@@ -33,7 +33,9 @@ void getTimeLine(
     if (T(1, i) == 1)
       PEY = coupledVarVec[i];
   }
-
+  for (auto var : coupledVarVec) {
+    var->reset();
+  }
   Generator generator(coupledVarVec, PEX, PEY, T, I, W, O);
   while (!generator.isEnd()) {
     generator.generateTimeLine();

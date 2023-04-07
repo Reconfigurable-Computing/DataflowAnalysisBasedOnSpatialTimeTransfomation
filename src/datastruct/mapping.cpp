@@ -4,6 +4,7 @@ namespace MAPPING {
 MAPPING::Access constructAccessMatrix(
     WORKLOAD::Tensor &tensor,
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec) {
+  tensor.bindVar(coupledVarVec);
   const int varNum = coupledVarVec.size();
   std::shared_ptr<std::vector<int>> tmp;
   const int dimNum = tensor.getDimensionNum();
