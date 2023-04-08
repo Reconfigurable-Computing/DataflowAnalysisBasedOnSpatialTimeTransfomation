@@ -99,8 +99,8 @@ void Network::constructNetwork(
   }
 }
 int NetworkGroup::getInitOrOutDelay(
-    int base, int bitWidth, std::pair<int, int> PEXRange,
-    std::pair<int, int> PEYRange) // for input and weight
+    int base, int bitWidth, std::pair<int, int> &PEXRange,
+    std::pair<int, int> &PEYRange) // for input and weight
 {
   if (_networkSet->size() == 1) {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
@@ -149,8 +149,8 @@ int NetworkGroup::getStableDelay(int base, int bitWidth) {
     }
   }
 }
-int Network::getMaxCoupleNum(std::pair<int, int> PEXRange,
-                             std::pair<int, int> PEYRange) {
+int Network::getMaxCoupleNum(std::pair<int, int> &PEXRange,
+                             std::pair<int, int> &PEYRange) {
   assert(_networkType != UNICAST && _networkType != STATIONARY);
 
   int featureX = _featureVec[0], featureY = _featureVec[1],
@@ -163,8 +163,7 @@ int Network::getMaxCoupleNum(std::pair<int, int> PEXRange,
     {
       return _rowNum - PEYRange.first;
     }
-  }
-  if (featureY == 0) {
+  } else if (featureY == 0) {
     if (featureX == 1) {
       return PEXRange.second + 1;
     } else // featureX = -1
@@ -175,20 +174,70 @@ int Network::getMaxCoupleNum(std::pair<int, int> PEXRange,
     int ret = 0;
     int perCoupleNum;
     for (auto item : (*_networkItemMap)) {
-      std::pair<int, int> accessPoint = item.first;
-      if (featureX == 1) {
-        perCoupleNum = PEXRange.second - accessPoint.first + 1;
-      } else if (featureX == -1) {
-        perCoupleNum = accessPoint.first - PEXRange.first + 1;
-      }
-      if (featureY == 1) {
-        perCoupleNum =
-            std::min(perCoupleNum, PEYRange.second - accessPoint.second + 1);
-      } else if (featureY == -1) {
-        perCoupleNum =
-            std::min(perCoupleNum, accessPoint.second - PEYRange.first + 1);
-      }
-      ret = std::max(ret, perCoupleNum);
+      ret = std::max(ret, getSlantCoupleNum(PEXRange, PEYRange, item.first));
+    }
+    return ret;
+  }
+}
+int Network::getSlantCoupleNum(std::pair<int, int> &PEXRange,
+                               std::pair<int, int> &PEYRange,
+                               std::pair<int, int> accessPoint) {
+  std::pair<int, int> left, top, right, bottom;
+  int featureX = _featureVec[0], featureY = _featureVec[1],
+      featureT = _featureVec[2];
+  // ax + by + c = 0
+  int a, b, c, x, y;
+  x = accessPoint.first;
+  y = accessPoint.second;
+  a = -featureX;
+  b = featureY;
+  c = -a * x - b * y;
+
+  x = PEXRange.first;
+  y = (-c - a * x) / b;
+  left.first = x;
+  left.second = y;
+
+  x = PEXRange.second;
+  y = (-c - a * x) / b;
+  right.first = x;
+  right.second = y;
+
+  y = PEYRange.first;
+  x = (-c - b * y) / a;
+  bottom.first = x;
+  bottom.second = y;
+
+  y = PEYRange.second;
+  x = (-c - b * y) / a;
+  top.first = x;
+  top.second = y;
+
+  if (featureX * featureY == 1) {
+    return std::min(right.first, top.first) -
+           std::max(left.first, bottom.first) + 1;
+  } else {
+    return std::min(right.first, bottom.first) -
+           std::max(left.first, top.first) + 1;
+  }
+}
+
+int Network::getActiveAccessPointNum(std::pair<int, int> &PEXRange,
+                                     std::pair<int, int> &PEYRange) {
+  assert(_networkType != UNICAST && _networkType != STATIONARY);
+  int featureX = _featureVec[0], featureY = _featureVec[1],
+      featureT = _featureVec[2];
+
+  if (featureX == 0) {
+    return PEXRange.second - PEXRange.first + 1;
+  } else if (featureY == 0) {
+    return PEYRange.second - PEYRange.first + 1;
+  } else {
+    int ret = 0;
+    int perCoupleNum;
+    for (auto item : (*_networkItemMap)) {
+      if (getSlantCoupleNum(PEXRange, PEYRange, item.first) > 0)
+        ret++;
     }
     return ret;
   }

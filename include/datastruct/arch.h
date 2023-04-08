@@ -78,16 +78,14 @@ public:
   }
 
   NETWORKTYPE getNetworkType() { return _networkType; }
-  void getAccessPoint(std::vector<std::pair<int, int>> &ret, int rowNum,
-                      int colNum) {
-    assert(_networkType != UNICAST && _networkType != STATIONARY);
-    for (auto item : *_networkItemMap) {
-      ret.push_back(item.second->getFirstCoord());
-    }
-  }
+  int getActiveAccessPointNum(std::pair<int, int> &PEXRange,
+                              std::pair<int, int> &PEYRange);
   // num from access point(first Coord) to max coupled coord
-  int getMaxCoupleNum(std::pair<int, int> PEXRange,
-                      std::pair<int, int> PEYRange);
+  int getSlantCoupleNum(std::pair<int, int> &PEXRange,
+                        std::pair<int, int> &PEYRange,
+                        std::pair<int, int> accessPoint);
+  int getMaxCoupleNum(std::pair<int, int> &PEXRange,
+                      std::pair<int, int> &PEYRange);
   void constructNetwork(int rowNum, int colNum, int doubleNetworkFirstFlag);
   void setBandWidth(int bandWidth) {
     _bandWidth = bandWidth;
@@ -229,10 +227,11 @@ public:
   {
     return (*_networkSet)[0]->getNetworkType();
   }
-  void getAccessPoint(std::vector<std::pair<int, int>> &ret, int rowNum,
-                      int colNum) // to do mult network
+  int getActiveAccessPointNum(
+      std::pair<int, int> &PEXRange,
+      std::pair<int, int> &PEYRange) // to do mult network
   {
-    (*_networkSet)[0]->getAccessPoint(ret, rowNum, colNum);
+    return (*_networkSet)[0]->getActiveAccessPointNum(PEXRange, PEYRange);
   }
   bool checkIfStationary() {
     if (_networkSet->size() == 1) {
@@ -247,8 +246,8 @@ public:
       }
     }
   }
-  int getInitOrOutDelay(int base, int bitWidth, std::pair<int, int> PEXRange,
-                        std::pair<int, int> PEYRange);
+  int getInitOrOutDelay(int base, int bitWidth, std::pair<int, int> &PEXRange,
+                        std::pair<int, int> &PEYRange);
   int getStableDelay(int base, int bitWidth);
   bool compareReuseVecAndFeatureVec(std::vector<int> &vec1,
                                     std::vector<int> &vec2) {
@@ -338,16 +337,16 @@ public:
   {
     return (*_networkGroupSet)[dataType]->getNetworkType();
   }
-  void
-  getAccessPoint(DATATYPE dataType,
-                 std::vector<std::pair<int, int>> &ret) // to do mult network
+  int getActiveAccessPointNum(
+      DATATYPE dataType, std::pair<int, int> &PEXRange,
+      std::pair<int, int> &PEYRange) // to do mult network
   {
-    (*_networkGroupSet)[dataType]->getAccessPoint(ret, _array->getRowNum(),
-                                                  _array->getColNum());
+    return (*_networkGroupSet)[dataType]->getActiveAccessPointNum(PEXRange,
+                                                                  PEYRange);
   }
   int getInitOrOutDelay(DATATYPE dataType, int base, int bitWidth,
-                        std::pair<int, int> PEXRange,
-                        std::pair<int, int> PEYRange) {
+                        std::pair<int, int> &PEXRange,
+                        std::pair<int, int> &PEYRange) {
     return (*_networkGroupSet)[dataType]->getInitOrOutDelay(base, bitWidth,
                                                             PEXRange, PEYRange);
   }

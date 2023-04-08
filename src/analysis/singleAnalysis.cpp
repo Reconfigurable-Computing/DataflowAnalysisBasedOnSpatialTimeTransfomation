@@ -53,29 +53,22 @@ void Analyzer::compInnerUniqueAccess(ARCH::DATATYPE dataType,
   std::pair<int, int> PEYRange = compTRange(1);
   int perPEVolumn = compPerPEVolumn(innerTimeVec);
   perPEVolumn *= _result.baseData[dataType];
+  int perPEUniqueVolumn;
+  if (_L.checkIfStationary(dataType)) {
+    perPEUniqueVolumn = _result.baseData[dataType];
+  } else {
+    perPEUniqueVolumn = perPEVolumn;
+  }
   int uniqueVolumn;
   if (networkType == ARCH::SYSTOLIC || networkType == ARCH::MULTICAST) {
-
-    std::vector<std::pair<int, int>> accessPointSet;
-    _L.getAccessPoint(dataType, accessPointSet);
-    int activeAccessPointNum = 0;
-    for (auto accessPoint : accessPointSet) {
-      if (accessPoint.first >= PEXRange.first &&
-          accessPoint.first <= PEXRange.second &&
-          accessPoint.second >= PEYRange.first &&
-          accessPoint.second <= PEYRange.second) {
-        activeAccessPointNum++;
-      }
-    }
-    uniqueVolumn = perPEVolumn * activeAccessPointNum;
-
-  } else if (networkType == ARCH::STATIONARY) {
-    uniqueVolumn = (PEYRange.second - PEYRange.first + 1) *
-                   (PEXRange.second - PEXRange.first + 1) * 1;
+    int activeAccessPointNum =
+        _L.getActiveAccessPointNum(dataType, PEXRange, PEYRange);
+    ;
+    uniqueVolumn = perPEUniqueVolumn * activeAccessPointNum;
 
   } else {
     uniqueVolumn = (PEYRange.second - PEYRange.first + 1) *
-                   (PEXRange.second - PEXRange.first + 1) * perPEVolumn;
+                   (PEXRange.second - PEXRange.first + 1) * perPEUniqueVolumn;
   }
   uniqueVolumn *= outerTimeSize;
   int totalVolumn = (PEYRange.second - PEYRange.first + 1) *
@@ -288,26 +281,27 @@ int Analyzer::compTimeSize(std::vector<int> &timeVec) {
 }
 
 int Analyzer::compOneStateStableDelay(std::vector<int> innerTimeVec) {
-  int doubleBufferFlag = 1;
-  int lowestFlag = 1;
   std::pair<int, int> PEXRange = compTRange(0);
   std::pair<int, int> PEYRange = compTRange(1);
-  int inputStableDelay = _L.getStableDelay(ARCH::INPUT, 1, 16);
-  int weightStableDelay = _L.getStableDelay(ARCH::WEIGHT, 1, 16);
-  int outputStableDelay = _L.getStableDelay(ARCH::OUTPUT, 1, 16);
-  int inputInitDelay =
-      _L.getInitOrOutDelay(ARCH::INPUT, 1, 16, PEXRange, PEYRange);
-  int weightInitDelay =
-      _L.getInitOrOutDelay(ARCH::WEIGHT, 1, 16, PEXRange, PEYRange);
-  int outputOutDelay =
-      _L.getInitOrOutDelay(ARCH::OUTPUT, 1, 16, PEXRange, PEYRange);
+  int inputStableDelay =
+      _L.getStableDelay(ARCH::INPUT, _result.baseData[0], 16);
+  int weightStableDelay =
+      _L.getStableDelay(ARCH::WEIGHT, _result.baseData[1], 16);
+  int outputStableDelay =
+      _L.getStableDelay(ARCH::OUTPUT, _result.baseData[2], 16);
+  int inputInitDelay = _L.getInitOrOutDelay(ARCH::INPUT, _result.baseData[0],
+                                            16, PEXRange, PEYRange);
+  int weightInitDelay = _L.getInitOrOutDelay(ARCH::WEIGHT, _result.baseData[1],
+                                             16, PEXRange, PEYRange);
+  int outputOutDelay = _L.getInitOrOutDelay(ARCH::OUTPUT, _result.baseData[2],
+                                            16, PEXRange, PEYRange);
   int stableDelay =
       std::max(std::max(std::max(inputStableDelay, weightStableDelay),
                         outputStableDelay),
                _result.baseCompCycle);
   int coupleVarNum = _coupledVarVec.size();
   int innerTimeSize = compTimeSize(innerTimeVec);
-  if (lowestFlag == 1 || doubleBufferFlag == 0) {
+  if (_lowestFlag || !_doubleBufferFlag) {
     return innerTimeSize * stableDelay +
            std::max(std::max(inputInitDelay, weightInitDelay), outputOutDelay);
   } else // doublebuffer
@@ -331,7 +325,8 @@ void Analyzer::delayAnalysis() {
   int stateNum = state.size();
   int innerVarNum = outerVarIndexVec.size();
   if (stateNum == 0) {
-    _result.delay = compOneStateStableDelay(innerTimeVec);
+    int outerTimeSize = compOneStateTimeSize(outerTimeVec);
+    _result.delay = outerTimeSize * compOneStateStableDelay(innerTimeVec);
   } else {
     for (int i = 0; i < stateNum; i++) {
       for (int j = 0; j < innerVarNum; j++) {

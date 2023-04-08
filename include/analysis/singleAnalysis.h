@@ -14,7 +14,8 @@ struct Result {
   int baseCompCycle;
   int baseData[3];
   int delay;
-  Result() {
+  Result() { reset(); }
+  void reset() {
     for (int i = 0; i < 3; i++) {
       uniqueVolumn[i] = 0;
       totalVolumn[i] = 0;
@@ -26,6 +27,7 @@ struct Result {
     delay = 0;
   }
 };
+
 class Analyzer {
 private:
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> &_coupledVarVec;
@@ -45,6 +47,8 @@ private:
       _reuseVecMap;
   std::shared_ptr<WORKLOAD::Iterator> PEX;
   std::shared_ptr<WORKLOAD::Iterator> PEY;
+  bool _doubleBufferFlag;
+  bool _lowestFlag;
   std::pair<int, int> compTRange(int row);
   bool checkValidInnerDim(int varIndex, ARCH::DATATYPE dataType);
   void constructSingleDataTypeTimeSet(int flag,
@@ -71,11 +75,13 @@ private:
 public:
   Analyzer(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
            MAPPING::Transform &T, WORKLOAD::Tensor &I, WORKLOAD::Tensor &W,
-           WORKLOAD::Tensor &O, ARCH::Level &L)
+           WORKLOAD::Tensor &O, ARCH::Level &L, bool lowestFlag,
+           bool doubleBufferFlag)
       : _coupledVarVec(coupledVarVec), _T(T), _I(I), _W(W), _O(O), _L(L),
         _accessI(MAPPING::constructAccessMatrix(I, coupledVarVec)),
         _accessW(MAPPING::constructAccessMatrix(W, coupledVarVec)),
-        _accessO(MAPPING::constructAccessMatrix(O, coupledVarVec)) {
+        _accessO(MAPPING::constructAccessMatrix(O, coupledVarVec)),
+        _doubleBufferFlag(doubleBufferFlag), _lowestFlag(lowestFlag) {
     _reuseVecI = compReuseVec(T, _accessI);
     _reuseVecW = compReuseVec(T, _accessW);
     _reuseVecO = compReuseVec(T, _accessO);
@@ -97,7 +103,7 @@ public:
     _L.checkNetworkReuseValid(ARCH::WEIGHT, _reuseVecW);
     _L.checkNetworkReuseValid(ARCH::OUTPUT, _reuseVecO);
   }
-  void setBase(int baseCompCycle, std::vector<int> baseData) {
+  void setBase(int baseCompCycle, int baseData[3]) {
     _result.baseCompCycle = baseCompCycle;
     for (int i = 0; i < 3; i++) {
       _result.baseData[i] = baseData[i];

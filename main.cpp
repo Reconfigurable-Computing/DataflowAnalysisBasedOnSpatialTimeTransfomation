@@ -26,12 +26,18 @@ public:
   MultAnalysis(WORKLOAD::Tensor &I, WORKLOAD::Tensor &W, WORKLOAD::Tensor &O)
       : _I(I), _W(W), _O(O) {}
   void addLevel(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
-                MAPPING::Transform &T, ARCH::Level &L) {
+                MAPPING::Transform &T, ARCH::Level &L,
+                bool doubleBufferFlag = false) {
     for (auto var : coupledVarVec) {
       _allCoupledVarVec.push_back(var);
     }
-
-    _analyzerSet.push_back(Analyzer(coupledVarVec, T, _I, _W, _O, L));
+    if (_analyzerSet.size() == 0) {
+      _analyzerSet.push_back(
+          Analyzer(coupledVarVec, T, _I, _W, _O, L, true, doubleBufferFlag));
+    } else {
+      _analyzerSet.push_back(
+          Analyzer(coupledVarVec, T, _I, _W, _O, L, false, doubleBufferFlag));
+    }
   }
   void compBufferSize(int level) {
     for (auto var : _allCoupledVarVec) {
@@ -54,12 +60,20 @@ public:
   }
 
   void oneAnalysis() {
-    _analyzerSet[0].setBase(1, {1, 1, 1});
+    int levelNum = _analyzerSet.size();
+    int baseData[3] = {1, 1, 1};
+    _analyzerSet[0].setBase(1, baseData);
     _analyzerSet[0].oneAnalysis();
-    compBufferSize(1);
+    compBufferSize(0);
+    for (int i = 1; i < levelNum; i++) {
+      auto &subLevelResult = _analyzerSet[i - 1].getResult();
+      _analyzerSet[i].setBase(subLevelResult.delay,
+                              subLevelResult.requiredBufferSize);
+      _analyzerSet[i].oneAnalysis();
+      compBufferSize(i);
+    }
   }
 };
-
 int main() {
 
   std::shared_ptr<WORKLOAD::Iterator> k =
@@ -122,9 +136,9 @@ int main() {
   L2.appendBuffer(ARCH::REG, ARCH::INPUT, 128, 16);
   L2.appendBuffer(ARCH::REG, ARCH::WEIGHT, 128, 16);
   L2.appendBuffer(ARCH::REG, ARCH::OUTPUT, 128, 16);
-  L2.appendNetworkGroup(32, 16, ARCH::INPUT, 16, {1, 0, 1});
-  L2.appendNetworkGroup(32, 16, ARCH::WEIGHT, 16, {0, 0, 1});
-  L2.appendNetworkGroup(32, 16, ARCH::OUTPUT, 16, {0, 1, 1});
+  L2.appendNetworkGroup(32, 16, ARCH::INPUT, 16, {-1, 1, 0});
+  L2.appendNetworkGroup(32, 16, ARCH::WEIGHT, 16, {1, 0, 1});
+  L2.appendNetworkGroup(32, 16, ARCH::OUTPUT, 16, {0, 1, 0}, {0, 0, 1});
 
   std::cout << I.getRange(1).first << ' ' << I.getRange(1).second << std::endl;
 
