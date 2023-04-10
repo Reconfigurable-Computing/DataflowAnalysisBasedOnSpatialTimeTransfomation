@@ -89,17 +89,20 @@ public:
       if (subLevelEdgeMap.empty()) {
         oneAnalysis(level - 1);
         auto subLevelResult = _analyzerSet[level - 1].getResult();
-        _analyzerSet[level].setBase(subLevelResult.delay,
-                                    subLevelResult.requiredDataSize);
+        std::vector<Base> baseVec;
+        baseVec.push_back(
+            Base(subLevelResult.delay, subLevelResult.requiredDataSize));
+        _analyzerSet[level].setBase(baseVec);
         _analyzerSet[level].oneAnalysis();
         compRequiredDataSize(level);
       } else {
         std::vector<std::shared_ptr<WORKLOAD::Iterator>> curSubCoupledVarVec;
         std::vector<std::vector<int>> state;
-        std::map<int, Base> baseMap;
+
         for (auto &item : subLevelEdgeMap) {
           curSubCoupledVarVec.push_back(item.second);
         }
+        std::vector<Base> baseVec(1 << subLevelEdgeMap.size());
         WORKLOAD::generateEdgeState(state, curSubCoupledVarVec);
         int stateNum = state.size();
         int varNum = curSubCoupledVarVec.size();
@@ -116,7 +119,7 @@ public:
             tmp *= 2;
             tmp += state[i][j];
           }
-          baseMap[tmp] =
+          baseVec[tmp] =
               Base(subLevelResult.delay, subLevelResult.requiredDataSize);
           for (int j = 0; j < varNum; j++) {
             if (state[i][j]) {
@@ -124,8 +127,14 @@ public:
             }
           }
         }
+        _analyzerSet[level].setBase(baseVec, curSubCoupledVarVec);
+        _analyzerSet[level].oneAnalysis();
+        compRequiredDataSize(level);
       }
     } else {
+      std::vector<Base> baseVec;
+      baseVec.push_back(Base());
+      _analyzerSet[0].setBase(baseVec);
       _analyzerSet[0].oneAnalysis();
       compRequiredDataSize(0);
     }
@@ -168,9 +177,8 @@ int main() {
   coupledVarVec1.push_back(k);
   coupledVarVec1.push_back(x);
   coupledVarVec1.push_back(c2);
-  coupledVarVec1.push_back(c1);
 
-  MAPPING::Transform T2(3, std::make_shared<std::vector<int>>(
+  MAPPING::Transform T1(3, std::make_shared<std::vector<int>>(
                                std::vector<int>{1, 0, 0, 0, 1, 0, 1, 1, 1}));
   ARCH::Level L1(16);
   L1.appendArray(32, 16, 16);
@@ -185,8 +193,9 @@ int main() {
   coupledVarVec2.push_back(y);
   coupledVarVec2.push_back(p);
   coupledVarVec2.push_back(q);
+  coupledVarVec2.push_back(c1);
 
-  MAPPING::Transform T1(
+  MAPPING::Transform T2(
       4, std::make_shared<std::vector<int>>(
              std::vector<int>{1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1}));
   ARCH::Level L2(16);

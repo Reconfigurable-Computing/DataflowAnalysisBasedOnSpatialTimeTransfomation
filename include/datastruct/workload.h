@@ -88,6 +88,7 @@ public:
       _coupledIterator->edgeSwap();
     }
   }
+  bool isEdge() { return _edgeFlag; }
   std::shared_ptr<Iterator> getCoupledIterator() { return _coupledIterator; }
   bool hasEdge() { return _hasEdge; }
   void reset() { _cur = 0; }

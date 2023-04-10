@@ -9,17 +9,20 @@
 struct Base {
   int baseData[3];
   int baseCompCycle;
+  int usedCount;
   Base() {
     for (int i = 0; i < 3; i++) {
       baseData[i] = 1;
     }
     baseCompCycle = 1;
+    usedCount = 0;
   }
   Base(int newBaseCompCycle, int newBaseData[3]) {
     baseCompCycle = newBaseCompCycle;
     for (int i = 0; i < 3; i++) {
       baseData[i] = newBaseData[i];
     }
+    usedCount = 0;
   }
 };
 struct Result {
@@ -27,7 +30,6 @@ struct Result {
   int totalVolumn[3];
   int reuseVolumn[3];
   int requiredDataSize[3];
-  Base base;
   int delay;
   Result() { reset(); }
   void reset() {
@@ -62,6 +64,12 @@ private:
   std::shared_ptr<WORKLOAD::Iterator> PEY;
   bool _doubleBufferFlag;
   bool _lowestFlag;
+
+  std::vector<Base> _baseSet;
+  std::vector<std::shared_ptr<WORKLOAD::Iterator>> _curSubCoupledVarVec;
+  std::set<std::shared_ptr<WORKLOAD::Iterator>> _curSubCoupledVarSet;
+  int _curBaseIndex;
+
   std::pair<int, int> compTRange(int row);
   bool checkValidInnerDim(int varIndex, ARCH::DATATYPE dataType);
   void constructSingleDataTypeTimeSet(int flag,
@@ -69,7 +77,6 @@ private:
                                       ARCH::DATATYPE dataType);
   void constructInnerOuterTimeVec(std::vector<int> &innerTimeVec,
                                   std::vector<int> &outerTimeVec);
-  int compTimeSize(std::vector<int> &timeVec);
   int compOneStateTimeSize(std::vector<int> &timeVec);
   void generateVarVec(std::vector<int> &timeVec,
                       std::vector<std::shared_ptr<WORKLOAD::Iterator>> &varVec);
@@ -83,6 +90,12 @@ private:
                       std::vector<int> &outerTimeVec);
   void delayAnalysis(std::vector<int> &innerTimeVec,
                      std::vector<int> &outerTimeVec);
+  void setEdge(std::shared_ptr<WORKLOAD::Iterator> curI);
+  void unsetEdge(std::shared_ptr<WORKLOAD::Iterator> curI);
+  void changeBase();
+  void compOneStatePerPEVolumn(int &perPEUniqueVolumn, int &perPEVolumn,
+                               std::vector<int> &innerTimeVec,
+                               ARCH::DATATYPE dataType);
 
 public:
   Analyzer(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
@@ -115,8 +128,16 @@ public:
     _L.checkNetworkReuseValid(ARCH::WEIGHT, _reuseVecW);
     _L.checkNetworkReuseValid(ARCH::OUTPUT, _reuseVecO);
   }
-  void setBase(int baseCompCycle, int baseData[3]) {
-    _result.base = Base(baseCompCycle, baseData);
+
+  void setBase(std::vector<Base> baseSet,
+               std::vector<std::shared_ptr<WORKLOAD::Iterator>>
+                   curSubCoupledVarVec = {}) {
+    _baseSet = baseSet;
+    _curSubCoupledVarVec = curSubCoupledVarVec;
+    for (auto &item : _curSubCoupledVarVec) {
+      _curSubCoupledVarSet.insert(item);
+    }
+    _curBaseIndex = 0;
   }
 
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> &getCoupledVarVec() {
