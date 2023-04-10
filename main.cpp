@@ -14,16 +14,18 @@
 #include <string>
 #include <vector>
 
-class MultAnalysis {
+class MultLevelAnalyzer {
 private:
   std::vector<Analyzer> _analyzerSet;
   WORKLOAD::Tensor &_I;
   WORKLOAD::Tensor &_W;
   WORKLOAD::Tensor &_O;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> _allCoupledVarVec;
+  std::vector<Result> _resultSet;
 
 public:
-  MultAnalysis(WORKLOAD::Tensor &I, WORKLOAD::Tensor &W, WORKLOAD::Tensor &O)
+  MultLevelAnalyzer(WORKLOAD::Tensor &I, WORKLOAD::Tensor &W,
+                    WORKLOAD::Tensor &O)
       : _I(I), _W(W), _O(O) {}
   void addLevel(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
                 MAPPING::Transform &T, ARCH::Level &L,
@@ -38,8 +40,9 @@ public:
       _analyzerSet.push_back(
           Analyzer(coupledVarVec, T, _I, _W, _O, L, false, doubleBufferFlag));
     }
+    _resultSet.push_back(Result());
   }
-  void compBufferSize(int level) {
+  void compRequiredDataSize(int level) {
     for (auto var : _allCoupledVarVec) {
       var->lock();
     }
@@ -52,25 +55,79 @@ public:
       }
     }
 
-    _analyzerSet[level].compRequiredBufferSize();
+    _analyzerSet[level].compRequiredDataSize();
 
     for (auto var : _allCoupledVarVec) {
       var->unlock();
     }
   }
 
-  void oneAnalysis() {
-    int levelNum = _analyzerSet.size();
-    int baseData[3] = {1, 1, 1};
-    _analyzerSet[0].setBase(1, baseData);
-    _analyzerSet[0].oneAnalysis();
-    compBufferSize(0);
-    for (int i = 1; i < levelNum; i++) {
-      auto &subLevelResult = _analyzerSet[i - 1].getResult();
-      _analyzerSet[i].setBase(subLevelResult.delay,
-                              subLevelResult.requiredBufferSize);
-      _analyzerSet[i].oneAnalysis();
-      compBufferSize(i);
+  void getSubLevelEdge(
+      int level,
+      std::map<std::shared_ptr<WORKLOAD::Iterator>,
+               std::shared_ptr<WORKLOAD::Iterator>> &subLevelEdgeMap) {
+    auto &curLevelCoupledVarVec = _analyzerSet[level].getCoupledVarVec();
+    for (auto it = curLevelCoupledVarVec.rbegin();
+         it != curLevelCoupledVarVec.rend(); it++) {
+      if ((*it)->hasEdge()) {
+        subLevelEdgeMap[(*it)->getCoupledIterator()] = *it;
+      } else {
+        if (subLevelEdgeMap.count((*it))) {
+          subLevelEdgeMap.erase((*it));
+        }
+      }
+    }
+  }
+
+  int getLevelNum() { return _analyzerSet.size(); }
+  void oneAnalysis(int level) {
+    if (level != 0) {
+      std::map<std::shared_ptr<WORKLOAD::Iterator>,
+               std::shared_ptr<WORKLOAD::Iterator>>
+          subLevelEdgeMap;
+      getSubLevelEdge(level, subLevelEdgeMap);
+      if (subLevelEdgeMap.empty()) {
+        oneAnalysis(level - 1);
+        auto subLevelResult = _analyzerSet[level - 1].getResult();
+        _analyzerSet[level].setBase(subLevelResult.delay,
+                                    subLevelResult.requiredDataSize);
+        _analyzerSet[level].oneAnalysis();
+        compRequiredDataSize(level);
+      } else {
+        std::vector<std::shared_ptr<WORKLOAD::Iterator>> curSubCoupledVarVec;
+        std::vector<std::vector<int>> state;
+        std::map<int, Base> baseMap;
+        for (auto &item : subLevelEdgeMap) {
+          curSubCoupledVarVec.push_back(item.second);
+        }
+        WORKLOAD::generateEdgeState(state, curSubCoupledVarVec);
+        int stateNum = state.size();
+        int varNum = curSubCoupledVarVec.size();
+        for (int i = 0; i < stateNum; i++) {
+          for (int j = 0; j < varNum; j++) {
+            if (state[i][j]) {
+              curSubCoupledVarVec[j]->setEdge();
+            }
+          }
+          oneAnalysis(level - 1);
+          auto subLevelResult = _analyzerSet[level - 1].getResult();
+          int tmp = 0;
+          for (int j = 0; j < varNum; j++) {
+            tmp *= 2;
+            tmp += state[i][j];
+          }
+          baseMap[tmp] =
+              Base(subLevelResult.delay, subLevelResult.requiredDataSize);
+          for (int j = 0; j < varNum; j++) {
+            if (state[i][j]) {
+              curSubCoupledVarVec[j]->unsetEdge();
+            }
+          }
+        }
+      }
+    } else {
+      _analyzerSet[0].oneAnalysis();
+      compRequiredDataSize(0);
     }
   }
 };
@@ -113,9 +170,8 @@ int main() {
   coupledVarVec1.push_back(c2);
   coupledVarVec1.push_back(c1);
 
-  MAPPING::Transform T1(
-      4, std::make_shared<std::vector<int>>(
-             std::vector<int>{1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1}));
+  MAPPING::Transform T2(3, std::make_shared<std::vector<int>>(
+                               std::vector<int>{1, 0, 0, 0, 1, 0, 1, 1, 1}));
   ARCH::Level L1(16);
   L1.appendArray(32, 16, 16);
   L1.appendBuffer(ARCH::REG, ARCH::INPUT, 128, 16);
@@ -129,8 +185,10 @@ int main() {
   coupledVarVec2.push_back(y);
   coupledVarVec2.push_back(p);
   coupledVarVec2.push_back(q);
-  MAPPING::Transform T2(3, std::make_shared<std::vector<int>>(
-                               std::vector<int>{1, 0, 0, 0, 1, 0, 1, 1, 1}));
+
+  MAPPING::Transform T1(
+      4, std::make_shared<std::vector<int>>(
+             std::vector<int>{1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1}));
   ARCH::Level L2(16);
   L2.appendArray(32, 16, 16);
   L2.appendBuffer(ARCH::REG, ARCH::INPUT, 128, 16);
@@ -142,9 +200,9 @@ int main() {
 
   std::cout << I.getRange(1).first << ' ' << I.getRange(1).second << std::endl;
 
-  MultAnalysis multanalysis(I, W, O);
+  MultLevelAnalyzer multanalysis(I, W, O);
   multanalysis.addLevel(coupledVarVec1, T1, L1);
   multanalysis.addLevel(coupledVarVec2, T2, L2);
-  multanalysis.oneAnalysis();
+  multanalysis.oneAnalysis(multanalysis.getLevelNum() - 1);
   return 0;
 }

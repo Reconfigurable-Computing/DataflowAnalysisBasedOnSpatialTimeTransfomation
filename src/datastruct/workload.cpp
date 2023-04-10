@@ -1,5 +1,4 @@
 #include "include/datastruct/workload.h"
-
 namespace WORKLOAD {
 std::shared_ptr<Monomial> operator*(std::shared_ptr<Iterator> var, int coef) {
   return std::make_shared<Monomial>(var, coef);
@@ -48,5 +47,37 @@ std::shared_ptr<Polynomial> operator+(std::shared_ptr<Polynomial> var1,
                                       std::shared_ptr<Polynomial> var2) {
   *var1 + var2;
   return var1;
+}
+void generateEdgeState(
+    std::vector<std::vector<int>> &state,
+    std::vector<std::shared_ptr<WORKLOAD::Iterator>> &curSubCoupledVarVec) {
+
+  for (auto var : curSubCoupledVarVec) {
+    int len = state.size();
+    if (var->hasEdge()) {
+      if (len == 0) {
+        state.push_back({0});
+        state.push_back({1});
+      } else {
+        for (int i = 0; i < len; i++) {
+          state.push_back(state[i]);
+        }
+        for (int i = 0; i < len; i++) {
+          state[i].push_back(1);
+        }
+        for (int i = len; i < 2 * len; i++) {
+          state[i].push_back(0);
+        }
+      }
+    } else {
+      if (len == 0) {
+        state.push_back({0});
+      } else {
+        for (int i = 0; i < len; i++) {
+          state[i].push_back(0);
+        }
+      }
+    }
+  }
 }
 } // namespace WORKLOAD

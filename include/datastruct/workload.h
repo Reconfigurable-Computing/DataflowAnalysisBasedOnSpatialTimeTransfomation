@@ -88,6 +88,7 @@ public:
       _coupledIterator->edgeSwap();
     }
   }
+  std::shared_ptr<Iterator> getCoupledIterator() { return _coupledIterator; }
   bool hasEdge() { return _hasEdge; }
   void reset() { _cur = 0; }
   void getNext() {
@@ -243,44 +244,14 @@ std::shared_ptr<Polynomial> operator+(std::shared_ptr<Polynomial> var1,
                                       std::shared_ptr<Monomial> var2);
 std::shared_ptr<Polynomial> operator+(std::shared_ptr<Polynomial> var1,
                                       std::shared_ptr<Polynomial> var2);
-
+void generateEdgeState(
+    std::vector<std::vector<int>> &state,
+    std::vector<std::shared_ptr<WORKLOAD::Iterator>> &curSubCoupledVarVec);
 class Tensor {
 private:
   std::shared_ptr<std::vector<std::shared_ptr<Polynomial>>> _dimensionTable;
   std::string _sym;
   std::shared_ptr<std::vector<int>> _coupled;
-  void generateEdgeState(
-      std::vector<std::vector<int>> &state,
-      std::vector<std::shared_ptr<WORKLOAD::Iterator>> &curSubCoupledVarVec) {
-
-    for (auto var : curSubCoupledVarVec) {
-      int len = state.size();
-      if (var->hasEdge()) {
-        if (len == 0) {
-          state.push_back({0});
-          state.push_back({1});
-        } else {
-          for (int i = 0; i < len; i++) {
-            state.push_back(state[i]);
-          }
-          for (int i = 0; i < len; i++) {
-            state[i].push_back(1);
-          }
-          for (int i = len; i < 2 * len; i++) {
-            state[i].push_back(0);
-          }
-        }
-      } else {
-        if (len == 0) {
-          state.push_back({0});
-        } else {
-          for (int i = 0; i < len; i++) {
-            state[i].push_back(0);
-          }
-        }
-      }
-    }
-  }
   int compOneStateVolumn() {
     int ret = 1;
     for (auto dim : *_dimensionTable) {
@@ -404,4 +375,5 @@ public:
     return ret;
   }
 }; // end of Tensor
+
 } // namespace WORKLOAD

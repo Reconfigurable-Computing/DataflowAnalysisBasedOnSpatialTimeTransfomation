@@ -6,13 +6,28 @@
 #include "include/util/eigenUtil.h"
 #include <set>
 #include <vector>
+struct Base {
+  int baseData[3];
+  int baseCompCycle;
+  Base() {
+    for (int i = 0; i < 3; i++) {
+      baseData[i] = 1;
+    }
+    baseCompCycle = 1;
+  }
+  Base(int newBaseCompCycle, int newBaseData[3]) {
+    baseCompCycle = newBaseCompCycle;
+    for (int i = 0; i < 3; i++) {
+      baseData[i] = newBaseData[i];
+    }
+  }
+};
 struct Result {
   int uniqueVolumn[3]; // input weight output
   int totalVolumn[3];
   int reuseVolumn[3];
-  int requiredBufferSize[3];
-  int baseCompCycle;
-  int baseData[3];
+  int requiredDataSize[3];
+  Base base;
   int delay;
   Result() { reset(); }
   void reset() {
@@ -20,10 +35,8 @@ struct Result {
       uniqueVolumn[i] = 0;
       totalVolumn[i] = 0;
       reuseVolumn[i] = 0;
-      baseData[i] = 0;
-      requiredBufferSize[i] = 0;
+      requiredDataSize[i] = 0;
     }
-    baseCompCycle = 0;
     delay = 0;
   }
 };
@@ -58,19 +71,18 @@ private:
                                   std::vector<int> &outerTimeVec);
   int compTimeSize(std::vector<int> &timeVec);
   int compOneStateTimeSize(std::vector<int> &timeVec);
-  void generateVarIndexVec(std::vector<int> &timeVec,
-                           std::vector<int> &varIndexVec);
-  void generateEdgeState(std::vector<std::vector<int>> &state,
-                         std::vector<int> varIndexVec);
-
+  void generateVarVec(std::vector<int> &timeVec,
+                      std::vector<std::shared_ptr<WORKLOAD::Iterator>> &varVec);
   int compPerPEVolumn(std::vector<int> &innerTimeVec);
   void compInnerUniqueAccess(ARCH::DATATYPE dataType, MAPPING::Access &access,
                              std::vector<int> &innerTimeVec, int outerTimeSize);
   void oneStateAccessAnalysis(std::vector<int> &innerTimeVec,
                               int outerTimeSize);
-  void accessAnalysis();
   int compOneStateStableDelay(std::vector<int> innerTimeVec);
-  void delayAnalysis();
+  void accessAnalysis(std::vector<int> &innerTimeVec,
+                      std::vector<int> &outerTimeVec);
+  void delayAnalysis(std::vector<int> &innerTimeVec,
+                     std::vector<int> &outerTimeVec);
 
 public:
   Analyzer(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
@@ -104,10 +116,7 @@ public:
     _L.checkNetworkReuseValid(ARCH::OUTPUT, _reuseVecO);
   }
   void setBase(int baseCompCycle, int baseData[3]) {
-    _result.baseCompCycle = baseCompCycle;
-    for (int i = 0; i < 3; i++) {
-      _result.baseData[i] = baseData[i];
-    }
+    _result.base = Base(baseCompCycle, baseData);
   }
 
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> &getCoupledVarVec() {
@@ -116,10 +125,10 @@ public:
   int getActivePENum();
   int getComputationDelay();
   void oneAnalysis();
-  void compRequiredBufferSize() {
-    _result.requiredBufferSize[ARCH::OUTPUT] = _O.getVolumn();
-    _result.requiredBufferSize[ARCH::INPUT] = _I.getVolumn();
-    _result.requiredBufferSize[ARCH::WEIGHT] = _W.getVolumn();
+  void compRequiredDataSize() {
+    _result.requiredDataSize[ARCH::OUTPUT] = _O.getVolumn();
+    _result.requiredDataSize[ARCH::INPUT] = _I.getVolumn();
+    _result.requiredDataSize[ARCH::WEIGHT] = _W.getVolumn();
   }
-  Result &getResult() { return _result; }
+  Result getResult() { return _result; }
 };
