@@ -28,8 +28,24 @@ public:
                     WORKLOAD::Tensor &O)
       : _I(I), _W(W), _O(O) {}
   void addLevel(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
-                MAPPING::Transform &T, ARCH::Level &L,
+                MAPPING::Transform &T, ARCH::Level &L, int spatialDimNum = 2,
                 bool doubleBufferFlag = false) {
+    if (spatialDimNum == 1) {
+      T.addExtraSpatial();
+      coupledVarVec.insert(coupledVarVec.begin(),
+                           std::make_shared<WORKLOAD::Iterator>(
+                               WORKLOAD::Iterator(0, 0, "tmpPEX")));
+    } else if (spatialDimNum == 0) {
+      T.addExtraSpatial();
+      coupledVarVec.insert(coupledVarVec.begin(),
+                           std::make_shared<WORKLOAD::Iterator>(
+                               WORKLOAD::Iterator(0, 0, "tmpPEY")));
+      T.addExtraSpatial();
+      coupledVarVec.insert(coupledVarVec.begin(),
+                           std::make_shared<WORKLOAD::Iterator>(
+                               WORKLOAD::Iterator(0, 0, "tmpPEX")));
+    }
+
     for (auto var : coupledVarVec) {
       _allCoupledVarVec.push_back(var);
     }
@@ -82,6 +98,7 @@ public:
   int getLevelNum() { return _analyzerSet.size(); }
   void oneAnalysis(int level) {
     if (level != 0) {
+      std::vector<std::shared_ptr<Result>> subLevelResultVec;
       std::map<std::shared_ptr<WORKLOAD::Iterator>,
                std::shared_ptr<WORKLOAD::Iterator>>
           subLevelEdgeMap;
@@ -89,11 +106,14 @@ public:
       if (subLevelEdgeMap.empty()) {
         oneAnalysis(level - 1);
         auto subLevelResult = _analyzerSet[level - 1].getResult();
+        subLevelResult->occTimes = _analyzerSet[level].getOccTimes();
+        subLevelResultVec.push_back(subLevelResult);
         std::vector<Base> baseVec;
         baseVec.push_back(
-            Base(subLevelResult.delay, subLevelResult.requiredDataSize));
+            Base(subLevelResult->delay, subLevelResult->requiredDataSize));
         _analyzerSet[level].setBase(baseVec);
         _analyzerSet[level].oneAnalysis();
+        _analyzerSet[level].setSubLevelResultVec(subLevelResultVec);
         compRequiredDataSize(level);
       } else {
         std::vector<std::shared_ptr<WORKLOAD::Iterator>> curSubCoupledVarVec;
@@ -102,6 +122,8 @@ public:
         for (auto &item : subLevelEdgeMap) {
           curSubCoupledVarVec.push_back(item.second);
         }
+        _analyzerSet[level].setCurSubCoupledVarVec(curSubCoupledVarVec);
+
         std::vector<Base> baseVec(1 << subLevelEdgeMap.size());
         WORKLOAD::generateEdgeState(state, curSubCoupledVarVec);
         int stateNum = state.size();
@@ -114,21 +136,25 @@ public:
           }
           oneAnalysis(level - 1);
           auto subLevelResult = _analyzerSet[level - 1].getResult();
+          subLevelResult->occTimes = _analyzerSet[level].getOccTimes();
+          subLevelResultVec.push_back(subLevelResult);
+
           int tmp = 0;
           for (int j = 0; j < varNum; j++) {
             tmp *= 2;
             tmp += state[i][j];
           }
           baseVec[tmp] =
-              Base(subLevelResult.delay, subLevelResult.requiredDataSize);
+              Base(subLevelResult->delay, subLevelResult->requiredDataSize);
           for (int j = 0; j < varNum; j++) {
             if (state[i][j]) {
               curSubCoupledVarVec[j]->unsetEdge();
             }
           }
         }
-        _analyzerSet[level].setBase(baseVec, curSubCoupledVarVec);
+        _analyzerSet[level].setBase(baseVec);
         _analyzerSet[level].oneAnalysis();
+        _analyzerSet[level].setSubLevelResultVec(subLevelResultVec);
         compRequiredDataSize(level);
       }
     } else {

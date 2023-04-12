@@ -26,6 +26,14 @@ public:
   int getColNum() { return _colNum; }
   int getRowNum() { return _value->size() / _colNum; }
   std::shared_ptr<std::vector<mappingValueType>> getMatrix() { return _value; }
+  void print() {
+    for (int i = 0; i < _colNum; i++) {
+      for (int j = 0; j < _colNum; j++) {
+        std::cout << (*this)(i, j) << ' ';
+      }
+      std::cout << std::endl;
+    }
+  }
 };
 class Transform : public Matrix2D {
 private:
@@ -34,6 +42,24 @@ public:
             std::shared_ptr<std::vector<mappingValueType>> transformMatrix)
       : Matrix2D(dimNum, transformMatrix) {
     assert(check());
+  }
+  void addExtraSpatial() {
+    _colNum++;
+    int addElementNum = _colNum * _colNum - (_colNum - 1) * (_colNum - 1);
+    for (int i = 0; i < addElementNum; i++) {
+      _value->push_back(0);
+    }
+    for (int i = _colNum - 2; i >= 0; i--) {
+      for (int j = _colNum - 2; j >= 0; j--) {
+
+        (*_value)[(i + 1) * _colNum + 1 + j] = (*_value)[i * (_colNum - 1) + j];
+      }
+    }
+    (*_value)[0] = 1;
+    for (int i = 1; i < _colNum; i++) {
+      (*_value)[i] = 0;
+      (*_value)[i * _colNum] = 0;
+    }
   }
   bool check() {
     if (_value->size() != _colNum * _colNum)

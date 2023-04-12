@@ -25,7 +25,7 @@ void Analyzer::changeBase() {
 }
 
 void Analyzer::oneAnalysis() {
-  _result.reset();
+  _result = std::make_shared<Result>(Result());
   getComputationDelay();
   std::vector<int> innerTimeVec;
   std::vector<int> outerTimeVec;
@@ -134,7 +134,7 @@ void Analyzer::delayAnalysis(std::vector<int> &innerTimeVec,
         std::max(std::max(inputInitDelay, weightInitDelay), outputOutDelay),
         delay);
   }
-  _result.delay += outerTimeSize * delay;
+  _result->delay += outerTimeSize * delay;
 }
 
 void Analyzer::accessAnalysis(std::vector<int> &innerTimeVec,
@@ -249,9 +249,9 @@ void Analyzer::compInnerUniqueAccess(ARCH::DATATYPE dataType,
   int totalVolumn = (PEYRange.second - PEYRange.first + 1) *
                     (PEXRange.second - PEXRange.first + 1) * perPEVolumn *
                     outerTimeSize;
-  _result.totalVolumn[dataType] += totalVolumn;
-  _result.uniqueVolumn[dataType] += uniqueVolumn;
-  _result.reuseVolumn[dataType] += totalVolumn - uniqueVolumn;
+  _result->totalVolumn[dataType] += totalVolumn;
+  _result->uniqueVolumn[dataType] += uniqueVolumn;
+  _result->reuseVolumn[dataType] += totalVolumn - uniqueVolumn;
 }
 
 void Analyzer::oneStateAccessAnalysis(std::vector<int> &innerTimeVec,

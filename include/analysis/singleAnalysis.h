@@ -9,20 +9,17 @@
 struct Base {
   int baseData[3];
   int baseCompCycle;
-  int usedCount;
   Base() {
     for (int i = 0; i < 3; i++) {
       baseData[i] = 1;
     }
     baseCompCycle = 1;
-    usedCount = 0;
   }
   Base(int newBaseCompCycle, int newBaseData[3]) {
     baseCompCycle = newBaseCompCycle;
     for (int i = 0; i < 3; i++) {
       baseData[i] = newBaseData[i];
     }
-    usedCount = 0;
   }
 };
 struct Result {
@@ -31,6 +28,8 @@ struct Result {
   int reuseVolumn[3];
   int requiredDataSize[3];
   int delay;
+  int occTimes;
+  std::vector<std::shared_ptr<Result>> subLevelResultVec;
   Result() { reset(); }
   void reset() {
     for (int i = 0; i < 3; i++) {
@@ -40,6 +39,7 @@ struct Result {
       requiredDataSize[i] = 0;
     }
     delay = 0;
+    occTimes = 0;
   }
 };
 
@@ -54,7 +54,7 @@ private:
   MAPPING::Access _accessI;
   MAPPING::Access _accessW;
   MAPPING::Access _accessO;
-  Result _result;
+  std::shared_ptr<Result> _result;
   std::shared_ptr<std::vector<std::vector<int>>> _reuseVecI;
   std::shared_ptr<std::vector<std::vector<int>>> _reuseVecW;
   std::shared_ptr<std::vector<std::vector<int>>> _reuseVecO;
@@ -107,6 +107,7 @@ public:
         _accessW(MAPPING::constructAccessMatrix(W, coupledVarVec)),
         _accessO(MAPPING::constructAccessMatrix(O, coupledVarVec)),
         _doubleBufferFlag(doubleBufferFlag), _lowestFlag(lowestFlag) {
+
     _reuseVecI = compReuseVec(T, _accessI);
     _reuseVecW = compReuseVec(T, _accessW);
     _reuseVecO = compReuseVec(T, _accessO);
@@ -128,15 +129,16 @@ public:
     _L.checkNetworkReuseValid(ARCH::WEIGHT, _reuseVecW);
     _L.checkNetworkReuseValid(ARCH::OUTPUT, _reuseVecO);
   }
-
-  void setBase(std::vector<Base> baseSet,
-               std::vector<std::shared_ptr<WORKLOAD::Iterator>>
-                   curSubCoupledVarVec = {}) {
-    _baseSet = baseSet;
+  void setCurSubCoupledVarVec(std::vector<std::shared_ptr<WORKLOAD::Iterator>>
+                                  curSubCoupledVarVec = {}) {
     _curSubCoupledVarVec = curSubCoupledVarVec;
     for (auto &item : _curSubCoupledVarVec) {
       _curSubCoupledVarSet.insert(item);
     }
+  }
+
+  void setBase(std::vector<Base> baseSet) {
+    _baseSet = baseSet;
     _curBaseIndex = 0;
   }
 
@@ -147,9 +149,59 @@ public:
   int getComputationDelay();
   void oneAnalysis();
   void compRequiredDataSize() {
-    _result.requiredDataSize[ARCH::OUTPUT] = _O.getVolumn();
-    _result.requiredDataSize[ARCH::INPUT] = _I.getVolumn();
-    _result.requiredDataSize[ARCH::WEIGHT] = _W.getVolumn();
+    _result->requiredDataSize[ARCH::OUTPUT] = _O.getVolumn();
+    _result->requiredDataSize[ARCH::INPUT] = _I.getVolumn();
+    _result->requiredDataSize[ARCH::WEIGHT] = _W.getVolumn();
   }
-  Result getResult() { return _result; }
+  std::shared_ptr<Result> getResult() { return _result; }
+  int getOccTimes() {
+    std::vector<std::shared_ptr<WORKLOAD::Iterator>> varVec;
+    for (auto &var : _coupledVarVec) {
+      if (!_curSubCoupledVarSet.count(var)) {
+        varVec.push_back(var);
+      }
+    }
+    std::vector<std::vector<int>> state;
+    WORKLOAD::generateEdgeState(state, varVec);
+    int stateNum = state.size();
+    int varNum = varVec.size();
+
+    std::vector<int> timeVec;
+    int TColNum = _T.getColNum();
+    for (int i = 2; i < TColNum; i++) {
+      timeVec.push_back(i);
+    }
+    int ret = 0;
+    if (stateNum == 0) {
+      PEX->lock();
+      PEY->lock();
+      ret += compOneStateTimeSize(timeVec);
+      PEX->unlock();
+      PEY->unlock();
+    } else {
+
+      for (int i = 0; i < stateNum; i++) {
+        for (int j = 0; j < varNum; j++) {
+          if (state[i][j]) {
+            setEdge(varVec[j]);
+          }
+        }
+        PEX->lock();
+        PEY->lock();
+        ret += compOneStateTimeSize(timeVec);
+        PEX->unlock();
+        PEY->unlock();
+        for (int j = 0; j < varNum; j++) {
+          if (state[i][j]) {
+            unsetEdge(varVec[j]);
+          }
+        }
+      }
+    }
+    return ret * getActivePENum();
+  }
+  void setSubLevelResultVec(
+      std::vector<std::shared_ptr<Result>> &subLevelResultVec) {
+    _result->subLevelResultVec = subLevelResultVec;
+  }
 };
