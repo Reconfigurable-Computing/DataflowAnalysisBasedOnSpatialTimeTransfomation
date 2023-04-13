@@ -1,5 +1,6 @@
 
-#include "include/analysis/singleAnalysis.h"
+#include "include/analysis/multiLevelAnalysis.h"
+#include "include/analysis/singleLevelAnalysis.h"
 #include "include/datastruct/arch.h"
 #include "include/datastruct/mapping.h"
 #include "include/datastruct/workload.h"
@@ -14,158 +15,6 @@
 #include <string>
 #include <vector>
 
-class MultLevelAnalyzer {
-private:
-  std::vector<Analyzer> _analyzerSet;
-  WORKLOAD::Tensor &_I;
-  WORKLOAD::Tensor &_W;
-  WORKLOAD::Tensor &_O;
-  std::vector<std::shared_ptr<WORKLOAD::Iterator>> _allCoupledVarVec;
-  std::vector<Result> _resultSet;
-
-public:
-  MultLevelAnalyzer(WORKLOAD::Tensor &I, WORKLOAD::Tensor &W,
-                    WORKLOAD::Tensor &O)
-      : _I(I), _W(W), _O(O) {}
-  void addLevel(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
-                MAPPING::Transform &T, ARCH::Level &L, int spatialDimNum = 2,
-                bool doubleBufferFlag = false) {
-    if (spatialDimNum == 1) {
-      T.addExtraSpatial();
-      coupledVarVec.insert(coupledVarVec.begin(),
-                           std::make_shared<WORKLOAD::Iterator>(
-                               WORKLOAD::Iterator(0, 0, "tmpPEX")));
-    } else if (spatialDimNum == 0) {
-      T.addExtraSpatial();
-      coupledVarVec.insert(coupledVarVec.begin(),
-                           std::make_shared<WORKLOAD::Iterator>(
-                               WORKLOAD::Iterator(0, 0, "tmpPEY")));
-      T.addExtraSpatial();
-      coupledVarVec.insert(coupledVarVec.begin(),
-                           std::make_shared<WORKLOAD::Iterator>(
-                               WORKLOAD::Iterator(0, 0, "tmpPEX")));
-    }
-
-    for (auto var : coupledVarVec) {
-      _allCoupledVarVec.push_back(var);
-    }
-    if (_analyzerSet.size() == 0) {
-      _analyzerSet.push_back(
-          Analyzer(coupledVarVec, T, _I, _W, _O, L, true, doubleBufferFlag));
-    } else {
-      _analyzerSet.push_back(
-          Analyzer(coupledVarVec, T, _I, _W, _O, L, false, doubleBufferFlag));
-    }
-    _resultSet.push_back(Result());
-  }
-  void compRequiredDataSize(int level) {
-    for (auto var : _allCoupledVarVec) {
-      var->lock();
-    }
-    for (int i = 0; i <= level; i++) {
-      std::vector<std::shared_ptr<WORKLOAD::Iterator>> &oneLevelCoupledVarVec =
-          _analyzerSet[i].getCoupledVarVec();
-
-      for (auto var : oneLevelCoupledVarVec) {
-        var->unlock();
-      }
-    }
-
-    _analyzerSet[level].compRequiredDataSize();
-
-    for (auto var : _allCoupledVarVec) {
-      var->unlock();
-    }
-  }
-
-  void getSubLevelEdge(
-      int level,
-      std::map<std::shared_ptr<WORKLOAD::Iterator>,
-               std::shared_ptr<WORKLOAD::Iterator>> &subLevelEdgeMap) {
-    auto &curLevelCoupledVarVec = _analyzerSet[level].getCoupledVarVec();
-    for (auto it = curLevelCoupledVarVec.rbegin();
-         it != curLevelCoupledVarVec.rend(); it++) {
-      if ((*it)->hasEdge()) {
-        subLevelEdgeMap[(*it)->getCoupledIterator()] = *it;
-      } else {
-        if (subLevelEdgeMap.count((*it))) {
-          subLevelEdgeMap.erase((*it));
-        }
-      }
-    }
-  }
-
-  int getLevelNum() { return _analyzerSet.size(); }
-  void oneAnalysis(int level) {
-    if (level != 0) {
-      std::vector<std::shared_ptr<Result>> subLevelResultVec;
-      std::map<std::shared_ptr<WORKLOAD::Iterator>,
-               std::shared_ptr<WORKLOAD::Iterator>>
-          subLevelEdgeMap;
-      getSubLevelEdge(level, subLevelEdgeMap);
-      if (subLevelEdgeMap.empty()) {
-        oneAnalysis(level - 1);
-        auto subLevelResult = _analyzerSet[level - 1].getResult();
-        subLevelResult->occTimes = _analyzerSet[level].getOccTimes();
-        subLevelResultVec.push_back(subLevelResult);
-        std::vector<Base> baseVec;
-        baseVec.push_back(
-            Base(subLevelResult->delay, subLevelResult->requiredDataSize));
-        _analyzerSet[level].setBase(baseVec);
-        _analyzerSet[level].oneAnalysis();
-        _analyzerSet[level].setSubLevelResultVec(subLevelResultVec);
-        compRequiredDataSize(level);
-      } else {
-        std::vector<std::shared_ptr<WORKLOAD::Iterator>> curSubCoupledVarVec;
-        std::vector<std::vector<int>> state;
-
-        for (auto &item : subLevelEdgeMap) {
-          curSubCoupledVarVec.push_back(item.second);
-        }
-        _analyzerSet[level].setCurSubCoupledVarVec(curSubCoupledVarVec);
-
-        std::vector<Base> baseVec(1 << subLevelEdgeMap.size());
-        WORKLOAD::generateEdgeState(state, curSubCoupledVarVec);
-        int stateNum = state.size();
-        int varNum = curSubCoupledVarVec.size();
-        for (int i = 0; i < stateNum; i++) {
-          for (int j = 0; j < varNum; j++) {
-            if (state[i][j]) {
-              curSubCoupledVarVec[j]->setEdge();
-            }
-          }
-          oneAnalysis(level - 1);
-          auto subLevelResult = _analyzerSet[level - 1].getResult();
-          subLevelResult->occTimes = _analyzerSet[level].getOccTimes();
-          subLevelResultVec.push_back(subLevelResult);
-
-          int tmp = 0;
-          for (int j = 0; j < varNum; j++) {
-            tmp *= 2;
-            tmp += state[i][j];
-          }
-          baseVec[tmp] =
-              Base(subLevelResult->delay, subLevelResult->requiredDataSize);
-          for (int j = 0; j < varNum; j++) {
-            if (state[i][j]) {
-              curSubCoupledVarVec[j]->unsetEdge();
-            }
-          }
-        }
-        _analyzerSet[level].setBase(baseVec);
-        _analyzerSet[level].oneAnalysis();
-        _analyzerSet[level].setSubLevelResultVec(subLevelResultVec);
-        compRequiredDataSize(level);
-      }
-    } else {
-      std::vector<Base> baseVec;
-      baseVec.push_back(Base());
-      _analyzerSet[0].setBase(baseVec);
-      _analyzerSet[0].oneAnalysis();
-      compRequiredDataSize(0);
-    }
-  }
-};
 int main() {
 
   std::shared_ptr<WORKLOAD::Iterator> k =
@@ -238,6 +87,6 @@ int main() {
   MultLevelAnalyzer multanalysis(I, W, O);
   multanalysis.addLevel(coupledVarVec1, T1, L1);
   multanalysis.addLevel(coupledVarVec2, T2, L2);
-  multanalysis.oneAnalysis(multanalysis.getLevelNum() - 1);
+  multanalysis.oneAnalysis();
   return 0;
 }
