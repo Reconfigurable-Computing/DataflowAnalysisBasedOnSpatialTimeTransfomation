@@ -1,5 +1,6 @@
 #pragma once
 #include "include/datastruct/workload.h"
+#include "include/util/debug.h"
 #include <assert.h>
 #include <iostream>
 #include <memory>
@@ -34,6 +35,16 @@ public:
       std::cout << std::endl;
     }
   }
+  std::string to_string() {
+    std::string ret;
+    for (int i = 0; i < _colNum; i++) {
+      for (int j = 0; j < _colNum; j++) {
+        ret += std::to_string((*this)(i, j)) + ' ';
+      }
+      ret += '\n';
+    }
+    return ret;
+  }
 };
 class Transform : public Matrix2D {
 private:
@@ -41,7 +52,7 @@ public:
   Transform(int dimNum,
             std::shared_ptr<std::vector<mappingValueType>> transformMatrix)
       : Matrix2D(dimNum, transformMatrix) {
-    assert(check());
+    DEBUG::checkError(check(), DEBUG::TMATRIXERROR, to_string());
   }
   void addExtraSpatial() {
     _colNum++;
@@ -64,21 +75,48 @@ public:
   bool check() {
     if (_value->size() != _colNum * _colNum)
       return 0;
+    int PEX, PEY;
     for (int j = 0; j < _colNum; j++) {
-      if ((*_value)[j] == 1 && (*_value)[j + _colNum] == 1)
+
+      if (operator()(0, j) == 1 && operator()(1, j) == 1)
         return 0;
+      else if (operator()(0, j) == 1)
+        PEX = j;
+      else if (operator()(1, j) == 1)
+        PEY = j;
     }
-    int count;
-    for (int i = 0; i < 2; i++) {
-      count = 0;
+    std::vector<int> rowOnesCount(_colNum, 0);
+    for (int i = 0; i < _colNum; i++) {
       for (int j = 0; j < _colNum; j++) {
-        if ((*_value)[j + i * _colNum] == 1) {
-          count++;
+        if (operator()(i, j) != 1 && operator()(i, j) != 0)
+          return 0;
+        else if (operator()(i, j) == 1) {
+          rowOnesCount[i]++;
         }
       }
-      if (count > 1)
+    }
+    if (rowOnesCount[0] > 1 || rowOnesCount[1] > 1)
+      return 0;
+    int count = 0;
+    int index;
+    for (int i = 2; i < _colNum; i++) {
+      if (rowOnesCount[i] > 1) {
+        count++;
+        if (count > 1)
+          return 0;
+        index = i;
+      } else if (rowOnesCount[i] == 0)
         return 0;
     }
+    count = 0;
+    for (int j = 2; j < _colNum; j++) {
+      if (operator()(index, j) != 1) {
+        count++;
+        if (count > 1)
+          return 0;
+      }
+    }
+
     return 1;
   }
 
@@ -88,9 +126,7 @@ private:
 public:
   Access(int colNum,
          std::shared_ptr<std::vector<mappingValueType>> accessMatrix)
-      : Matrix2D(colNum, accessMatrix) {
-    assert(check());
-  }
+      : Matrix2D(colNum, accessMatrix) {}
 }; // end of Access
 MAPPING::Access constructAccessMatrix(
     WORKLOAD::Tensor &tensor,

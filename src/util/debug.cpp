@@ -1,46 +1,44 @@
 #include "include/util/debug.h"
+namespace DEBUG {
 
-bool timeLineGreater(std::shared_ptr<TimeLine> &t1,
-                     std::shared_ptr<TimeLine> &t2) {
-  for (int i = t1->_time.size() - 1; i >= 0; i--) {
-    if (t1->_time[i] > t2->_time[i])
-      return false;
-    else if (t1->_time[i] < t2->_time[i])
-      return true;
+void printError(ErrorType errortype, std::string msg) {
+  switch (errortype) {
+  case TMATRIXERROR: {
+    std::cout << "Error!Invalid T Matrix\n\t" << msg << std::endl;
+    break;
   }
-  if (t1->PEX > t2->PEX)
-    return false;
-  else if (t1->PEX < t2->PEX)
-    return true;
-  else {
-    if (t1->PEY > t2->PEY)
-      return false;
-    else
-      return true;
+  case NETWORKOPERROR: {
+    std::cout << "Error!Excute a error network operation:" << msg << std::endl;
+    break;
+  }
+  case NETWORKFEATUREERROR: {
+    std::cout << "Error!Invalid featureVec:" << msg << std::endl;
+    break;
+  }
+  case REUSEVECSOLVEERROR: {
+    std::cout << "Error!ReuseVec solve error:" << msg << std::endl;
+    break;
+  }
+  case ITERATOREDGEERROR: {
+    std::cout << "Error!The definition of edge edge is forbidden:" << msg
+              << std::endl;
+    break;
+  }
+  case REUSEVECNOTFITNETWORKARCHERROR: {
+    std::cout << "Error!The reuseVec doesn't fit for arch:" << msg << std::endl;
+    break;
+  }
+  case EDGEPEDIMERROR: {
+    std::cout << "Error!Spatial dim has edge state:" << msg << std::endl;
+    break;
+  }
   }
 }
 
-void getTimeLine(
-    std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
-    MAPPING::Transform &T, WORKLOAD::Tensor &I, WORKLOAD::Tensor &W,
-    WORKLOAD::Tensor &O) {
-  int colNum = T.getColNum();
-  std::shared_ptr<WORKLOAD::Iterator> PEX;
-  std::shared_ptr<WORKLOAD::Iterator> PEY;
-  for (int i = 0; i < colNum; i++) {
-    if (T(0, i) == 1)
-      PEX = coupledVarVec[i];
-    if (T(1, i) == 1)
-      PEY = coupledVarVec[i];
+void checkError(bool flag, ErrorType errortype, std::string msg) {
+  if (!flag) {
+    printError(errortype, msg);
+    exit(-1);
   }
-  for (auto var : coupledVarVec) {
-    var->reset();
-  }
-  Generator generator(coupledVarVec, PEX, PEY, T, I, W, O);
-  while (!generator.isEnd()) {
-    generator.generateTimeLine();
-    generator.getNext();
-  }
-  generator.generateTimeLine();
-  generator.generatorSort();
 }
+} // namespace DEBUG

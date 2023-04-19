@@ -1,5 +1,6 @@
 #pragma once
 
+#include "include/util/debug.h"
 #include <assert.h>
 #include <iostream>
 #include <memory>
@@ -34,7 +35,7 @@ public:
         _hasEdge(true), _edgeFlag(false), _isEdgeChild(false),
         _coupledIterator(coupledIterator), _cur(lowBound), _edgeLowBound(0),
         _edgeUpBound(0) {
-    assert(!_isEdgeChild);
+    DEBUG::checkError(!_isEdgeChild, DEBUG::ITERATOREDGEERROR, to_string());
     _coupledIterator->setIsEdgeChild();
   }
 

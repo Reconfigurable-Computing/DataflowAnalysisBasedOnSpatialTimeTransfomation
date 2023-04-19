@@ -6,6 +6,7 @@
 #include "include/datastruct/workload.h"
 #include "include/util/debug.h"
 #include "include/util/eigenUtil.h"
+#include "include/util/timeline.h"
 #include <assert.h>
 #include <iostream>
 #include <map>

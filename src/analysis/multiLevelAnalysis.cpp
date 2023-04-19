@@ -176,4 +176,39 @@ void MultLevelAnalyzer::oneAnalysis() {
   recusiveAnalysis(levelNum - 1);
   auto resultTreeRoot = _analyzerSet[levelNum - 1].getResult();
   compMultiLevelReuslt(resultTreeRoot);
+  outputCSV();
+}
+
+void MultLevelAnalyzer::outputCSV() {
+  int levelNum = _analyzerSet.size();
+  std::ofstream ofile;
+  ofile.open("result.csv", std::ios::out);
+  ofile << "level ,";
+  ofile << "unique_output,";
+  ofile << "reuse_output,";
+  ofile << "total_output,";
+  ofile << "bufferSize_output,";
+  for (int j = 0; j < 2; j++) {
+    ofile << std::string("unique_input_") + std::to_string(j) + ",";
+    ofile << std::string("reuse_input_") + std::to_string(j) + ",";
+    ofile << std::string("total_input_") + std::to_string(j) + ",";
+    ofile << std::string("bufferSize_input_") + std::to_string(j) + ",";
+  }
+  ofile << "delay" << std::endl;
+
+  for (int i = 0; i < levelNum; i++) {
+    ofile << std::to_string(i) + ',';
+    ofile << std::to_string(_resultSet[i].uniqueVolumn[2]) + ',';
+    ofile << std::to_string(_resultSet[i].reuseVolumn[2]) + ',';
+    ofile << std::to_string(_resultSet[i].totalVolumn[2]) + ',';
+    ofile << std::to_string(_resultSet[i].requiredDataSize[2]) + ',';
+    for (int j = 0; j < 2; j++) {
+      ofile << std::to_string(_resultSet[i].uniqueVolumn[j]) + ',';
+      ofile << std::to_string(_resultSet[i].reuseVolumn[j]) + ',';
+      ofile << std::to_string(_resultSet[i].totalVolumn[j]) + ',';
+      ofile << std::to_string(_resultSet[i].requiredDataSize[j]) + ',';
+    }
+    ofile << std::to_string(_resultSet[i].delay) << std::endl;
+  }
+  ofile.close();
 }

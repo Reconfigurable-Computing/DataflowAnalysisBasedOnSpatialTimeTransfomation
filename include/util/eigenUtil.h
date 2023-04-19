@@ -2,6 +2,7 @@
 #include "Eigen/Core"
 #include "Eigen/Dense"
 #include "include/datastruct/mapping.h"
+#include "include/util/debug.h"
 typedef double valueType;
 
 void printMatrix(

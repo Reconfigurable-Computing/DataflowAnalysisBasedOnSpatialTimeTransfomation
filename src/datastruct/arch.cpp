@@ -151,8 +151,8 @@ int NetworkGroup::getStableDelay(int base, int bitWidth) {
 }
 int Network::getMaxCoupleNum(std::pair<int, int> &PEXRange,
                              std::pair<int, int> &PEYRange) {
-  assert(_networkType != UNICAST && _networkType != STATIONARY);
-
+  DEBUG::checkError(_networkType != UNICAST && _networkType != STATIONARY,
+                    DEBUG::NETWORKOPERROR, "getMaxCoupleNum");
   int featureX = _featureVec[0], featureY = _featureVec[1],
       featureT = _featureVec[2];
 
@@ -224,7 +224,8 @@ int Network::getSlantCoupleNum(std::pair<int, int> &PEXRange,
 
 int Network::getActiveAccessPointNum(std::pair<int, int> &PEXRange,
                                      std::pair<int, int> &PEYRange) {
-  assert(_networkType != UNICAST && _networkType != STATIONARY);
+  DEBUG::checkError(_networkType != UNICAST && _networkType != STATIONARY,
+                    DEBUG::NETWORKOPERROR, "getActiveAccessPointNum");
   int featureX = _featureVec[0], featureY = _featureVec[1],
       featureT = _featureVec[2];
 

@@ -1,9 +1,9 @@
 #pragma once
 #include "include/analysis/singleLevelAnalysis.h"
+#include <fstream>
 #include <queue>
 #include <set>
 #include <vector>
-
 class MultLevelAnalyzer {
 private:
   std::vector<Analyzer> _analyzerSet;
@@ -41,4 +41,5 @@ public:
                 bool doubleBufferFlag = false);
 
   void oneAnalysis();
+  void outputCSV();
 };

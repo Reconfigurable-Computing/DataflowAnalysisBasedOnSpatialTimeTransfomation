@@ -3,7 +3,9 @@
 #include "include/datastruct/arch.h"
 #include "include/datastruct/mapping.h"
 #include "include/datastruct/workload.h"
+#include "include/util/debug.h"
 #include "include/util/eigenUtil.h"
+#include "include/util/timeline.h"
 #include <set>
 #include <vector>
 struct Base {
@@ -135,13 +137,17 @@ public:
       if (_T(1, i) == 1)
         PEY = _coupledVarVec[i];
     }
-
+    DEBUG::checkError(!PEX->hasEdge(), DEBUG::EDGEPEDIMERROR, PEX->to_string());
+    DEBUG::checkError(!PEY->hasEdge(), DEBUG::EDGEPEDIMERROR, PEY->to_string());
     _reuseVecMap[ARCH::INPUT] = _reuseVecI;
     _reuseVecMap[ARCH::WEIGHT] = _reuseVecW;
     _reuseVecMap[ARCH::OUTPUT] = _reuseVecO;
-    _L.checkNetworkReuseValid(ARCH::INPUT, _reuseVecI);
-    _L.checkNetworkReuseValid(ARCH::WEIGHT, _reuseVecW);
-    _L.checkNetworkReuseValid(ARCH::OUTPUT, _reuseVecO);
+    DEBUG::checkError(_L.checkNetworkReuseValid(ARCH::INPUT, _reuseVecI),
+                      DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Input");
+    DEBUG::checkError(_L.checkNetworkReuseValid(ARCH::WEIGHT, _reuseVecW),
+                      DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Weight");
+    DEBUG::checkError(_L.checkNetworkReuseValid(ARCH::OUTPUT, _reuseVecO),
+                      DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Output");
   }
   void setCurSubCoupledVarVec(std::vector<std::shared_ptr<WORKLOAD::Iterator>>
                                   curSubCoupledVarVec = {});

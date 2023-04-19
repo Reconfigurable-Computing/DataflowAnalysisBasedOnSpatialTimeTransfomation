@@ -49,7 +49,8 @@ void compATinv(MAPPING::Transform &T, MAPPING::Access &A,
     tmp.clear();
     for (int j = 0; j < eigenmatrix.cols(); j++) {
       value = std::floor(eigenmatrix(i, j));
-      assert((value - eigenmatrix(i, j)) < 1e-5);
+      DEBUG::checkError((value - eigenmatrix(i, j)) < 1e-5,
+                        DEBUG::REUSEVECSOLVEERROR, "compATinv");
       tmp.push_back(value);
     }
     matrix.push_back(tmp);
@@ -99,9 +100,11 @@ void convertTrapezoidalMatrix(std::vector<std::vector<Fraction>> &matrix,
   std::pair<int, int> NZIndex;
   for (int i = 0; i < rowNum; i++) {
     NZIndex = findFirstNoZeroRow(matrix, i);
-    assert(NZIndex.second != colNum - 1);
+    DEBUG::checkError(NZIndex.second != colNum - 1, DEBUG::REUSEVECSOLVEERROR,
+                      "convertTrapezoidalMatrix");
     if (i == 0) {
-      assert(NZIndex.first != -1);
+      DEBUG::checkError(NZIndex.first != -1, DEBUG::REUSEVECSOLVEERROR,
+                        "convertTrapezoidalMatrix");
     }
     if (NZIndex.first == -1)
       break;
@@ -120,7 +123,6 @@ void convertTrapezoidalMatrix(std::vector<std::vector<Fraction>> &matrix,
                 matrix[j][NZIndex.second] / matrix[i][NZIndex.second]);
     }
   }
-  int rate;
   for (int i = 0; i < majorLen; i++) {
     NZIndex = majorVec[i];
     rowDivNum(matrix, i, matrix[i][NZIndex.second]);
@@ -243,10 +245,9 @@ doSolvingLinearEquations(std::vector<std::vector<Fraction>> &tmpM) {
   std::vector<std::pair<int, int>> majorVec;
   convertTrapezoidalMatrix(tmpM, majorVec);
   std::vector<int> varSymFlag(colNum - 1);
-  std::generate(varSymFlag.begin(), varSymFlag.end(), [] {
-    static int i = 0;
-    return i++;
-  });
+  int count = 0;
+  std::generate(varSymFlag.begin(), varSymFlag.end(),
+                [&count] { return count++; });
   int majorLen = majorVec.size();
   aggregateMajorVar(majorVec, varSymFlag, tmpM);
   std::vector<std::vector<Fraction>> reuseVec(

@@ -349,12 +349,7 @@ int Analyzer::compOneStateStableDelay(std::vector<int> innerTimeVec) {
                         outputStableDelay),
                _baseSet[_curBaseIndex].baseCompCycle);
   int timeSize = compOneStateTimeSize(innerTimeVec);
-  if (_lowestFlag || !_doubleBufferFlag) {
-    return timeSize * stableDelay;
-  } else // doublebuffer
-  {
-    return timeSize * stableDelay;
-  }
+  return timeSize * stableDelay;
 }
 
 void Analyzer::compRequiredDataSize() {

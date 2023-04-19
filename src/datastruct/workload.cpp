@@ -1,4 +1,5 @@
 #include "include/datastruct/workload.h"
+
 namespace WORKLOAD {
 std::shared_ptr<Monomial> operator*(std::shared_ptr<Iterator> var, int coef) {
   return std::make_shared<Monomial>(var, coef);
