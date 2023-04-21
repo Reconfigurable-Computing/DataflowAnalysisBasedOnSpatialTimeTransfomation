@@ -15,7 +15,8 @@ typedef enum {
   REUSEVECSOLVEERROR,
   ITERATOREDGEERROR,
   REUSEVECNOTFITNETWORKARCHERROR,
-  EDGEPEDIMERROR
+  EDGEPEDIMERROR,
+  PEDIMOUTOFRANGE
 } ErrorType;
 template <typename T> std::string vec2string(std::vector<T> &vec) {
   std::string ret;
@@ -29,5 +30,5 @@ template <typename T> std::string vec2string(std::vector<T> &vec) {
 }
 void printError(ErrorType errortype, std::string msg);
 
-void checkError(bool flag, ErrorType errortype, std::string msg = "");
+void check(bool flag, ErrorType errortype, std::string msg = "");
 } // namespace DEBUG

@@ -7,6 +7,7 @@
 #include <set>
 #include <string>
 #include <vector>
+
 namespace WORKLOAD {
 class Iterator {
 private:
@@ -35,7 +36,7 @@ public:
         _hasEdge(true), _edgeFlag(false), _isEdgeChild(false),
         _coupledIterator(coupledIterator), _cur(lowBound), _edgeLowBound(0),
         _edgeUpBound(0) {
-    DEBUG::checkError(!_isEdgeChild, DEBUG::ITERATOREDGEERROR, to_string());
+    DEBUG::check(!_isEdgeChild, DEBUG::ITERATOREDGEERROR, to_string());
     _coupledIterator->setIsEdgeChild();
   }
 

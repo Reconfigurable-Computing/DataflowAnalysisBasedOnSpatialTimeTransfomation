@@ -52,7 +52,7 @@ public:
   Transform(int dimNum,
             std::shared_ptr<std::vector<mappingValueType>> transformMatrix)
       : Matrix2D(dimNum, transformMatrix) {
-    DEBUG::checkError(check(), DEBUG::TMATRIXERROR, to_string());
+    DEBUG::check(check(), DEBUG::TMATRIXERROR, to_string());
   }
   void addExtraSpatial() {
     _colNum++;

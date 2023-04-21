@@ -1,5 +1,4 @@
 
-
 #include "include/datastruct/mapping.h"
 #include "include/util/eigenUtil.h"
 
@@ -49,8 +48,8 @@ void compATinv(MAPPING::Transform &T, MAPPING::Access &A,
     tmp.clear();
     for (int j = 0; j < eigenmatrix.cols(); j++) {
       value = std::floor(eigenmatrix(i, j));
-      DEBUG::checkError((value - eigenmatrix(i, j)) < 1e-5,
-                        DEBUG::REUSEVECSOLVEERROR, "compATinv");
+      DEBUG::check((value - eigenmatrix(i, j)) < 1e-5,
+                   DEBUG::REUSEVECSOLVEERROR, "compATinv");
       tmp.push_back(value);
     }
     matrix.push_back(tmp);
@@ -100,11 +99,11 @@ void convertTrapezoidalMatrix(std::vector<std::vector<Fraction>> &matrix,
   std::pair<int, int> NZIndex;
   for (int i = 0; i < rowNum; i++) {
     NZIndex = findFirstNoZeroRow(matrix, i);
-    DEBUG::checkError(NZIndex.second != colNum - 1, DEBUG::REUSEVECSOLVEERROR,
-                      "convertTrapezoidalMatrix");
+    DEBUG::check(NZIndex.second != colNum - 1, DEBUG::REUSEVECSOLVEERROR,
+                 "convertTrapezoidalMatrix");
     if (i == 0) {
-      DEBUG::checkError(NZIndex.first != -1, DEBUG::REUSEVECSOLVEERROR,
-                        "convertTrapezoidalMatrix");
+      DEBUG::check(NZIndex.first != -1, DEBUG::REUSEVECSOLVEERROR,
+                   "convertTrapezoidalMatrix");
     }
     if (NZIndex.first == -1)
       break;

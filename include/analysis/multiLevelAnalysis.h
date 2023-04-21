@@ -4,6 +4,7 @@
 #include <queue>
 #include <set>
 #include <vector>
+
 class MultLevelAnalyzer {
 private:
   std::vector<Analyzer> _analyzerSet;
@@ -31,6 +32,7 @@ private:
       std::vector<Base> &baseVec);
   void recusiveAnalysis(int level);
   void compMultiLevelReuslt(std::shared_ptr<Result> resultTreeRoot);
+  void compMultiLevelReusltDFS(std::shared_ptr<Result> node, int level);
 
 public:
   MultLevelAnalyzer(WORKLOAD::Tensor &I, WORKLOAD::Tensor &W,

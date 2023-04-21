@@ -57,7 +57,7 @@ int main() {
   MAPPING::Transform T1(3, std::make_shared<std::vector<int>>(
                                std::vector<int>{1, 0, 0, 0, 1, 0, 1, 1, 1}));
   ARCH::Level L1(16);
-  L1.appendArray(32, 16, 16);
+  L1.appendArray(3, 4, 16);
   L1.appendBuffer(ARCH::REG, ARCH::INPUT, 128, 16);
   L1.appendBuffer(ARCH::REG, ARCH::WEIGHT, 128, 16);
   L1.appendBuffer(ARCH::REG, ARCH::OUTPUT, 128, 16);

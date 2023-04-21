@@ -89,8 +89,8 @@ public:
   void constructNetwork(int rowNum, int colNum, int doubleNetworkFirstFlag);
   void setBandWidth(int bandWidth) {
     _bandWidth = bandWidth;
-    DEBUG::checkError(_networkType != UNICAST && _networkType != STATIONARY,
-                      DEBUG::NETWORKOPERROR, "setBandWidth");
+    DEBUG::check(_networkType != UNICAST && _networkType != STATIONARY,
+                 DEBUG::NETWORKOPERROR, "setBandWidth");
     for (auto item : *_networkItemMap) {
       item.second->setBandWidth(bandWidth);
     }
@@ -102,8 +102,8 @@ public:
   //}
   void setBandWidthByCoupleNumRatio(int baseBandWidth) {
     _bandWidth = baseBandWidth;
-    DEBUG::checkError(_networkType != UNICAST && _networkType != STATIONARY,
-                      DEBUG::NETWORKOPERROR, "setBandWidthByCoupleNumRatio");
+    DEBUG::check(_networkType != UNICAST && _networkType != STATIONARY,
+                 DEBUG::NETWORKOPERROR, "setBandWidthByCoupleNumRatio");
     for (auto item : *_networkItemMap) {
       item.second->setBandWidth(baseBandWidth * item.second->getCoupledNum());
     }
@@ -127,14 +127,14 @@ public:
   }
   NETWORKTYPE classifyNetworkType(std::vector<int> featureVec) {
 
-    DEBUG::checkError(featureVec.size() == 3, DEBUG::NETWORKFEATUREERROR,
-                      DEBUG::vec2string(featureVec));
+    DEBUG::check(featureVec.size() == 3, DEBUG::NETWORKFEATUREERROR,
+                 DEBUG::vec2string(featureVec));
     int featureX = featureVec[0], featureY = featureVec[1],
         featureT = featureVec[2];
-    DEBUG::checkError(
-        std::abs(featureX) < 2 && std::abs(featureY) < 2 && featureT == 0 ||
-            featureT == 1,
-        DEBUG::NETWORKFEATUREERROR, DEBUG::vec2string(featureVec));
+    DEBUG::check(std::abs(featureX) < 2 && std::abs(featureY) < 2 &&
+                         featureT == 0 ||
+                     featureT == 1,
+                 DEBUG::NETWORKFEATUREERROR, DEBUG::vec2string(featureVec));
 
     if (!(featureX == 0 && featureY == 0) && featureT == 0)
       return MULTICAST;
@@ -171,10 +171,10 @@ public:
       _featureVec.push_back(featureVec1);
       // realize STAIONARY with UNICAST / SYSTOLIC
       // realize UNICAST(reuse type) with UNICAST(physics) / SYSTOLIC
-      DEBUG::checkError(networkType2 != MULTICAST && networkType2 != STATIONARY,
-                        DEBUG::NETWORKFEATUREERROR,
-                        DEBUG::vec2string(featureVec1) +
-                            DEBUG::vec2string(featureVec2));
+      DEBUG::check(networkType2 != MULTICAST && networkType2 != STATIONARY,
+                   DEBUG::NETWORKFEATUREERROR,
+                   DEBUG::vec2string(featureVec1) +
+                       DEBUG::vec2string(featureVec2));
       // SYSTOLIC UNICAST valid
       _networkSet->push_back(std::make_shared<Network>(
           featureVec1, rowNum, colNum, networkType1, 0));
@@ -184,9 +184,9 @@ public:
       _featureVec.push_back(featureVec1);
       _featureVec.push_back(featureVec2);
       // realize STAIONARY with MULTICAST / SYSTOLIC
-      DEBUG::checkError(networkType1 != UNICAST, DEBUG::NETWORKFEATUREERROR,
-                        DEBUG::vec2string(featureVec1) +
-                            DEBUG::vec2string(featureVec2));
+      DEBUG::check(networkType1 != UNICAST, DEBUG::NETWORKFEATUREERROR,
+                   DEBUG::vec2string(featureVec1) +
+                       DEBUG::vec2string(featureVec2));
       // SYSTOLIC MULTICAST valid
       _networkSet->push_back(std::make_shared<Network>(
           featureVec1, rowNum, colNum, networkType1, bandWidth));
@@ -197,10 +197,10 @@ public:
       _featureVec.push_back(featureVec2);
       // MULTICAST-MULTICAST MULTICAST-UNICAST MULTICAST-SYSTOLIC valid
       // SYSTOLIC-MULTICAST SYSTOLIC-SYSTOLIC SYSTOLIC-UNICAST valid
-      DEBUG::checkError(checkDoubleNetwork(featureVec1, featureVec2),
-                        DEBUG::NETWORKFEATUREERROR,
-                        DEBUG::vec2string(featureVec1) +
-                            DEBUG::vec2string(featureVec2));
+      DEBUG::check(checkDoubleNetwork(featureVec1, featureVec2),
+                   DEBUG::NETWORKFEATUREERROR,
+                   DEBUG::vec2string(featureVec1) +
+                       DEBUG::vec2string(featureVec2));
       _networkSet->push_back(std::make_shared<Network>(
           featureVec1, rowNum, colNum, networkType1, 0, 1));
       _networkSet->push_back(std::make_shared<Network>(
@@ -374,6 +374,14 @@ public:
       DATATYPE dataType,
       std::shared_ptr<std::vector<std::vector<int>>> reuseVec) {
     return (*_networkGroupSet)[dataType]->checkNetworkReuseValid(reuseVec);
+  }
+  int getPENum() { return _array->getColNum() * _array->getRowNum(); }
+  bool checkPEDimRange(std::pair<int, int> &PERange, int flag) {
+    if (flag == 0) {
+      return _array->getRowNum() > PERange.second && PERange.first >= 0;
+    } else {
+      return _array->getColNum() > PERange.second && PERange.first >= 0;
+    }
   }
 }; // end of Level
 

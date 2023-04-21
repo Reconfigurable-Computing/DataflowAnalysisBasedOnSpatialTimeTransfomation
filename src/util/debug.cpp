@@ -32,10 +32,14 @@ void printError(ErrorType errortype, std::string msg) {
     std::cout << "Error!Spatial dim has edge state:" << msg << std::endl;
     break;
   }
+  case PEDIMOUTOFRANGE: {
+    std::cout << "Error!PEDim out of Range:" << msg << std::endl;
+    break;
+  }
   }
 }
 
-void checkError(bool flag, ErrorType errortype, std::string msg) {
+void check(bool flag, ErrorType errortype, std::string msg) {
   if (!flag) {
     printError(errortype, msg);
     exit(-1);

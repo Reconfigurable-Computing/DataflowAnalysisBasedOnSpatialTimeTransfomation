@@ -30,7 +30,12 @@ struct Result {
   int reuseVolumn[3];
   int requiredDataSize[3];
   int delay;
+  int compCycle;
   int occTimes;
+  float compRate;
+  int activePEMultTimeNum;
+  int totalPEMultTimeNum;
+  float PEUtilRate;
   std::vector<std::shared_ptr<Result>> subLevelResultVec;
   Result() { reset(); }
   void reset() {
@@ -42,6 +47,11 @@ struct Result {
     }
     delay = 0;
     occTimes = 0;
+    compCycle = 0;
+    compRate = 0;
+    activePEMultTimeNum = 0;
+    totalPEMultTimeNum = 0;
+    PEUtilRate = 0;
   }
   Result &operator+=(Result &other) {
     for (int i = 0; i < 3; i++) {
@@ -52,7 +62,12 @@ struct Result {
           std::max(requiredDataSize[i], other.requiredDataSize[i]);
     }
     delay = std::max(delay, other.delay);
-    occTimes = 0;
+    compRate += other.delay * other.occTimes;
+    compCycle += other.compCycle * other.occTimes;
+    occTimes += other.occTimes;
+    activePEMultTimeNum += other.activePEMultTimeNum * other.occTimes;
+    totalPEMultTimeNum += other.totalPEMultTimeNum * other.occTimes;
+    PEUtilRate = 0;
     return *this;
   }
 };
@@ -94,11 +109,14 @@ private:
   int compOneStateTimeSize(std::vector<int> &timeVec);
   void generateVarVec(std::vector<int> &timeVec,
                       std::vector<std::shared_ptr<WORKLOAD::Iterator>> &varVec);
-  void compInnerUniqueAccess(ARCH::DATATYPE dataType, MAPPING::Access &access,
-                             std::vector<int> &innerTimeVec, int outerTimeSize);
-  void oneStateAccessAnalysis(std::vector<int> &innerTimeVec,
-                              int outerTimeSize);
-  int compOneStateStableDelay(std::vector<int> innerTimeVec);
+  void compOneDataVolumn(ARCH::DATATYPE dataType, MAPPING::Access &access,
+                         std::vector<int> &innerTimeVec, int outerTimeSize);
+  int compOneStateStableDelay();
+  int compOneStateInitDelay(std::pair<int, int> &PEXRange,
+                            std::pair<int, int> &PEYRange);
+  void compOneStateDelay(std::vector<int> &innerTimeVec, int &delay,
+                         int &compCycle, int &initDelay,
+                         int &activePEMultTimeNum);
   void accessAnalysis(std::vector<int> &innerTimeVec,
                       std::vector<int> &outerTimeVec);
   void delayAnalysis(std::vector<int> &innerTimeVec,
@@ -106,9 +124,9 @@ private:
   void setEdge(std::shared_ptr<WORKLOAD::Iterator> curI);
   void unsetEdge(std::shared_ptr<WORKLOAD::Iterator> curI);
   void changeBase();
-  void compOneStatePerPEVolumn(int &perPEUniqueVolumn, int &perPEVolumn,
-                               std::vector<int> &innerTimeVec,
-                               ARCH::DATATYPE dataType);
+  void compOneStateVolumn(int &uniqueVolumn, int &totalVolumn,
+                          std::vector<int> &innerTimeVec,
+                          ARCH::DATATYPE dataType);
   void
   changeEdgeByState(bool flag, int varNum, int i,
                     std::vector<std::vector<int>> &state,
@@ -137,24 +155,29 @@ public:
       if (_T(1, i) == 1)
         PEY = _coupledVarVec[i];
     }
-    DEBUG::checkError(!PEX->hasEdge(), DEBUG::EDGEPEDIMERROR, PEX->to_string());
-    DEBUG::checkError(!PEY->hasEdge(), DEBUG::EDGEPEDIMERROR, PEY->to_string());
+    std::pair<int, int> PEXRange = compTRange(0);
+    std::pair<int, int> PEYRange = compTRange(1);
+    DEBUG::check(_L.checkPEDimRange(PEXRange, 1), DEBUG::PEDIMOUTOFRANGE,
+                 PEX->to_string());
+    DEBUG::check(_L.checkPEDimRange(PEYRange, 0), DEBUG::PEDIMOUTOFRANGE,
+                 PEY->to_string());
+
+    DEBUG::check(!PEX->hasEdge(), DEBUG::EDGEPEDIMERROR, PEX->to_string());
+    DEBUG::check(!PEY->hasEdge(), DEBUG::EDGEPEDIMERROR, PEY->to_string());
     _reuseVecMap[ARCH::INPUT] = _reuseVecI;
     _reuseVecMap[ARCH::WEIGHT] = _reuseVecW;
     _reuseVecMap[ARCH::OUTPUT] = _reuseVecO;
-    DEBUG::checkError(_L.checkNetworkReuseValid(ARCH::INPUT, _reuseVecI),
-                      DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Input");
-    DEBUG::checkError(_L.checkNetworkReuseValid(ARCH::WEIGHT, _reuseVecW),
-                      DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Weight");
-    DEBUG::checkError(_L.checkNetworkReuseValid(ARCH::OUTPUT, _reuseVecO),
-                      DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Output");
+    DEBUG::check(_L.checkNetworkReuseValid(ARCH::INPUT, _reuseVecI),
+                 DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Input");
+    DEBUG::check(_L.checkNetworkReuseValid(ARCH::WEIGHT, _reuseVecW),
+                 DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Weight");
+    DEBUG::check(_L.checkNetworkReuseValid(ARCH::OUTPUT, _reuseVecO),
+                 DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Output");
   }
   void setCurSubCoupledVarVec(std::vector<std::shared_ptr<WORKLOAD::Iterator>>
                                   curSubCoupledVarVec = {});
   void setBase(std::vector<Base> baseSet);
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> &getCoupledVarVec();
-  int getActivePENum();
-  int getComputationDelay();
   void oneAnalysis();
   void compRequiredDataSize();
   std::shared_ptr<Result> getResult();

@@ -154,20 +154,38 @@ void MultLevelAnalyzer::recusiveAnalysis(int level) {
 
 void MultLevelAnalyzer::compMultiLevelReuslt(
     std::shared_ptr<Result> resultTreeRoot) {
-  resultTreeRoot->occTimes = 1;
-  std::queue<std::pair<int, std::shared_ptr<Result>>> _q;
-  int curLevel = -1;
-  _q.push(std::make_pair(0, resultTreeRoot));
-  while (!_q.empty()) {
-    auto front = _q.front();
-    if (curLevel != front.first) {
-      curLevel = front.first;
-    }
-    for (auto item : front.second->subLevelResultVec) {
-      _q.push(std::make_pair(front.first + 1, item));
-    }
-    _resultSet[curLevel] += *(front.second);
-    _q.pop();
+  compMultiLevelReusltDFS(resultTreeRoot, _analyzerSet.size() - 1);
+  for (auto &result : _resultSet) {
+    result.compRate = result.compCycle / result.compRate;
+    result.PEUtilRate =
+        float(result.activePEMultTimeNum) / result.totalPEMultTimeNum;
+  }
+  // std::queue<std::pair<int, std::shared_ptr<Result>>> _q;
+  // int curLevel = -1;
+  //_q.push(std::make_pair(0, resultTreeRoot));
+  // while (!_q.empty())
+  //{
+  //    auto front = _q.front();
+  //    if (curLevel != front.first)
+  //    {
+  //        curLevel = front.first;
+  //    }
+  //    for (auto item : front.second->subLevelResultVec)
+  //    {
+  //        _q.push(std::make_pair(front.first + 1, item));
+  //    }
+  //    _resultSet[curLevel] += *(front.second);
+  //    _q.pop();
+  //}
+}
+
+void MultLevelAnalyzer::compMultiLevelReusltDFS(std::shared_ptr<Result> node,
+                                                int level) {
+  int occTimes = node->occTimes;
+  _resultSet[level] += *node;
+  for (auto item : node->subLevelResultVec) {
+    item->occTimes *= occTimes;
+    compMultiLevelReusltDFS(item, level - 1);
   }
 }
 
@@ -175,6 +193,7 @@ void MultLevelAnalyzer::oneAnalysis() {
   int levelNum = getLevelNum();
   recusiveAnalysis(levelNum - 1);
   auto resultTreeRoot = _analyzerSet[levelNum - 1].getResult();
+  resultTreeRoot->occTimes = 1;
   compMultiLevelReuslt(resultTreeRoot);
   outputCSV();
 }
