@@ -52,12 +52,12 @@ void Analyzer::oneAnalysis() {
 void Analyzer::delayAnalysis(std::vector<int> &innerTimeVec,
                              std::vector<int> &outerTimeVec) {
   int outerTimeSize = compOneStateTimeSize(outerTimeVec);
-  int initDelay = 0;
   int coupleVarNum = _coupledVarVec.size();
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> innerVarVec;
   generateVarVec(innerTimeVec, innerVarVec);
   std::vector<std::vector<int>> state;
   WORKLOAD::generateEdgeState(state, innerVarVec);
+  int initDelay = 0;
   int delay = 0;
   int compCycle = 0;
   int activePEMultTimeNum = 0;
@@ -85,6 +85,7 @@ void Analyzer::delayAnalysis(std::vector<int> &innerTimeVec,
   _result->compCycle += outerTimeSize * compCycle;
   _result->activePEMultTimeNum += outerTimeSize * activePEMultTimeNum;
   _result->totalPEMultTimeNum += outerTimeSize * delay * _L.getPENum();
+  _result->initTimes += outerTimeSize;
 }
 
 int Analyzer::compOneStateStableDelay() {
@@ -94,6 +95,16 @@ int Analyzer::compOneStateStableDelay() {
       _L.getStableDelay(ARCH::WEIGHT, _baseSet[_curBaseIndex].baseData[1], 16);
   int outputStableDelay =
       _L.getStableDelay(ARCH::OUTPUT, _baseSet[_curBaseIndex].baseData[2], 16);
+  if (_curBaseIndex == 0) {
+    _result->stableDelay[ARCH::INPUT] =
+        std::max(_result->stableDelay[ARCH::INPUT], inputStableDelay);
+    _result->stableDelay[ARCH::WEIGHT] =
+        std::max(_result->stableDelay[ARCH::WEIGHT], weightStableDelay);
+    _result->stableDelay[ARCH::OUTPUT] =
+        std::max(_result->stableDelay[ARCH::OUTPUT], outputStableDelay);
+    _result->stableDelay[3] = std::max(_result->stableDelay[3],
+                                       _baseSet[_curBaseIndex].baseCompCycle);
+  }
   return std::max(std::max(std::max(inputStableDelay, weightStableDelay),
                            outputStableDelay),
                   _baseSet[_curBaseIndex].baseCompCycle);
@@ -101,18 +112,22 @@ int Analyzer::compOneStateStableDelay() {
 
 int Analyzer::compOneStateInitDelay(std::pair<int, int> &PEXRange,
                                     std::pair<int, int> &PEYRange) {
-  int inputInitDelay = std::max(
-      inputInitDelay,
-      _L.getInitOrOutDelay(ARCH::INPUT, _baseSet[_curBaseIndex].baseData[0], 16,
-                           PEXRange, PEYRange));
-  int weightInitDelay = std::max(
-      weightInitDelay,
+  int inputInitDelay = _L.getInitOrOutDelay(
+      ARCH::INPUT, _baseSet[_curBaseIndex].baseData[0], 16, PEXRange, PEYRange);
+  int weightInitDelay =
       _L.getInitOrOutDelay(ARCH::WEIGHT, _baseSet[_curBaseIndex].baseData[1],
-                           16, PEXRange, PEYRange));
-  int outputOutDelay = std::max(
-      outputOutDelay,
+                           16, PEXRange, PEYRange);
+  int outputOutDelay =
       _L.getInitOrOutDelay(ARCH::OUTPUT, _baseSet[_curBaseIndex].baseData[2],
-                           16, PEXRange, PEYRange));
+                           16, PEXRange, PEYRange);
+  if (_curBaseIndex == 0) {
+    _result->initDelay[ARCH::INPUT] =
+        std::max(_result->initDelay[ARCH::INPUT], inputInitDelay);
+    _result->initDelay[ARCH::WEIGHT] =
+        std::max(_result->initDelay[ARCH::WEIGHT], weightInitDelay);
+    _result->initDelay[ARCH::OUTPUT] =
+        std::max(_result->initDelay[ARCH::OUTPUT], outputOutDelay);
+  }
   return std::max(std::max(inputInitDelay, weightInitDelay), outputOutDelay);
 }
 

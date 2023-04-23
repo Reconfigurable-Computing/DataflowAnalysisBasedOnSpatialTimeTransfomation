@@ -29,6 +29,9 @@ struct Result {
   int totalVolumn[3];
   int reuseVolumn[3];
   int requiredDataSize[3];
+  int initDelay[3];
+  int initTimes;
+  int stableDelay[4];
   int delay;
   int compCycle;
   int occTimes;
@@ -44,7 +47,11 @@ struct Result {
       totalVolumn[i] = 0;
       reuseVolumn[i] = 0;
       requiredDataSize[i] = 0;
+      initDelay[i] = 0;
+      stableDelay[i] = 0;
     }
+    stableDelay[3] = 0;
+    initTimes = 0;
     delay = 0;
     occTimes = 0;
     compCycle = 0;
@@ -60,7 +67,11 @@ struct Result {
       reuseVolumn[i] += other.reuseVolumn[i] * other.occTimes;
       requiredDataSize[i] =
           std::max(requiredDataSize[i], other.requiredDataSize[i]);
+      initDelay[i] = std::max(initDelay[i], other.initDelay[i]);
+      stableDelay[i] = std::max(stableDelay[i], other.stableDelay[i]);
     }
+    stableDelay[3] = std::max(stableDelay[3], other.stableDelay[3]);
+    initTimes = std::max(initTimes, other.initTimes);
     delay = std::max(delay, other.delay);
     compRate += other.delay * other.occTimes;
     compCycle += other.compCycle * other.occTimes;

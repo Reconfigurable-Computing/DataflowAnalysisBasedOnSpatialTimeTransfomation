@@ -160,23 +160,6 @@ void MultLevelAnalyzer::compMultiLevelReuslt(
     result.PEUtilRate =
         float(result.activePEMultTimeNum) / result.totalPEMultTimeNum;
   }
-  // std::queue<std::pair<int, std::shared_ptr<Result>>> _q;
-  // int curLevel = -1;
-  //_q.push(std::make_pair(0, resultTreeRoot));
-  // while (!_q.empty())
-  //{
-  //    auto front = _q.front();
-  //    if (curLevel != front.first)
-  //    {
-  //        curLevel = front.first;
-  //    }
-  //    for (auto item : front.second->subLevelResultVec)
-  //    {
-  //        _q.push(std::make_pair(front.first + 1, item));
-  //    }
-  //    _resultSet[curLevel] += *(front.second);
-  //    _q.pop();
-  //}
 }
 
 void MultLevelAnalyzer::compMultiLevelReusltDFS(std::shared_ptr<Result> node,
@@ -201,33 +184,64 @@ void MultLevelAnalyzer::oneAnalysis() {
 void MultLevelAnalyzer::outputCSV() {
   int levelNum = _analyzerSet.size();
   std::ofstream ofile;
-  ofile.open("result.csv", std::ios::out);
+  ofile.open("result.csv", std::ios::trunc);
   ofile << "level ,";
   ofile << "unique_output,";
   ofile << "reuse_output,";
   ofile << "total_output,";
+  ofile << "reuseRate_output,";
   ofile << "bufferSize_output,";
   for (int j = 0; j < 2; j++) {
     ofile << std::string("unique_input_") + std::to_string(j) + ",";
     ofile << std::string("reuse_input_") + std::to_string(j) + ",";
     ofile << std::string("total_input_") + std::to_string(j) + ",";
+    ofile << std::string("reuseRate_input_") + std::to_string(j) + ",";
     ofile << std::string("bufferSize_input_") + std::to_string(j) + ",";
   }
-  ofile << "delay" << std::endl;
-
+  ofile << "maxInitDelay_output,";
+  for (int j = 0; j < 2; j++) {
+    ofile << std::string("maxInitDelay_input_") + std::to_string(j) + ",";
+  }
+  ofile << "maxInitTimes,";
+  ofile << "maxStableDelay_output,";
+  for (int j = 0; j < 2; j++) {
+    ofile << std::string("maxStableDelay_input_") + std::to_string(j) + ",";
+  }
+  ofile << std::string("maxStableCompDelay") + ",";
+  ofile << std::string("delay") + ",";
+  ofile << std::string("compCycleRate") + ",";
+  ofile << "PEUtilRate" << std::endl;
   for (int i = 0; i < levelNum; i++) {
     ofile << std::to_string(i) + ',';
-    ofile << std::to_string(_resultSet[i].uniqueVolumn[2]) + ',';
-    ofile << std::to_string(_resultSet[i].reuseVolumn[2]) + ',';
-    ofile << std::to_string(_resultSet[i].totalVolumn[2]) + ',';
-    ofile << std::to_string(_resultSet[i].requiredDataSize[2]) + ',';
+    ofile << std::to_string(_resultSet[i].uniqueVolumn[2]) + ",";
+    ofile << std::to_string(_resultSet[i].reuseVolumn[2]) + ",";
+    ofile << std::to_string(_resultSet[i].totalVolumn[2]) + ",";
+    ofile << std::to_string(float(_resultSet[i].reuseVolumn[2]) /
+                            _resultSet[i].totalVolumn[2]) +
+                 ",";
+    ofile << std::to_string(_resultSet[i].requiredDataSize[2]) + ",";
     for (int j = 0; j < 2; j++) {
-      ofile << std::to_string(_resultSet[i].uniqueVolumn[j]) + ',';
-      ofile << std::to_string(_resultSet[i].reuseVolumn[j]) + ',';
-      ofile << std::to_string(_resultSet[i].totalVolumn[j]) + ',';
-      ofile << std::to_string(_resultSet[i].requiredDataSize[j]) + ',';
+      ofile << std::to_string(_resultSet[i].uniqueVolumn[j]) + ",";
+      ofile << std::to_string(_resultSet[i].reuseVolumn[j]) + ",";
+      ofile << std::to_string(_resultSet[i].totalVolumn[j]) + ",";
+      ofile << std::to_string(float(_resultSet[i].reuseVolumn[j]) /
+                              _resultSet[i].totalVolumn[j]) +
+                   ",";
+      ofile << std::to_string(_resultSet[i].requiredDataSize[j]) + ",";
     }
-    ofile << std::to_string(_resultSet[i].delay) << std::endl;
+    ofile << std::to_string(_resultSet[i].initDelay[2]) + ",";
+    for (int j = 0; j < 2; j++) {
+      ofile << std::to_string(_resultSet[i].initDelay[j]) + ",";
+    }
+    ofile << std::to_string(_resultSet[i].initTimes) + ",";
+    ofile << std::to_string(_resultSet[i].stableDelay[2]) + ",";
+    for (int j = 0; j < 2; j++) {
+      ofile << std::to_string(_resultSet[i].stableDelay[j]) + ",";
+    }
+    ofile << std::to_string(_resultSet[i].stableDelay[3]) + ",";
+    ofile << std::to_string(_resultSet[i].delay) + ",";
+    ofile << std::to_string(_resultSet[i].compRate) + ",";
+    ofile << std::to_string(_resultSet[i].PEUtilRate) << std::endl;
   }
   ofile.close();
 }
