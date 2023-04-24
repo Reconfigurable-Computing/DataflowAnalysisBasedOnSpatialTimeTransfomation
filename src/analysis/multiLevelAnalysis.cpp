@@ -1,4 +1,5 @@
 #include "include/analysis/multiLevelAnalysis.h"
+
 void MultLevelAnalyzer::addLevel(
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
     MAPPING::Transform &T, ARCH::Level &L, int spatialDimNum,
@@ -155,10 +156,20 @@ void MultLevelAnalyzer::recusiveAnalysis(int level) {
 void MultLevelAnalyzer::compMultiLevelReuslt(
     std::shared_ptr<Result> resultTreeRoot) {
   compMultiLevelReusltDFS(resultTreeRoot, _analyzerSet.size() - 1);
+  int levelNum = _analyzerSet.size();
   for (auto &result : _resultSet) {
+  }
+  for (int i = 0; i < levelNum; i++) {
+    Result &result = _resultSet[i];
     result.compRate = result.compCycle / result.compRate;
     result.PEUtilRate =
         float(result.activePEMultTimeNum) / result.totalPEMultTimeNum;
+    result.totalBandWidth[ARCH::INPUT] =
+        _analyzerSet[i].compTotalBandWidth(ARCH::INPUT);
+    result.totalBandWidth[ARCH::WEIGHT] =
+        _analyzerSet[i].compTotalBandWidth(ARCH::WEIGHT);
+    result.totalBandWidth[ARCH::OUTPUT] =
+        _analyzerSet[i].compTotalBandWidth(ARCH::OUTPUT);
   }
 }
 
@@ -178,6 +189,7 @@ void MultLevelAnalyzer::oneAnalysis() {
   auto resultTreeRoot = _analyzerSet[levelNum - 1].getResult();
   resultTreeRoot->occTimes = 1;
   compMultiLevelReuslt(resultTreeRoot);
+
   outputCSV();
 }
 
@@ -190,13 +202,20 @@ void MultLevelAnalyzer::outputCSV() {
   ofile << "reuse_output,";
   ofile << "total_output,";
   ofile << "reuseRate_output,";
-  ofile << "bufferSize_output,";
+
   for (int j = 0; j < 2; j++) {
     ofile << std::string("unique_input_") + std::to_string(j) + ",";
     ofile << std::string("reuse_input_") + std::to_string(j) + ",";
     ofile << std::string("total_input_") + std::to_string(j) + ",";
     ofile << std::string("reuseRate_input_") + std::to_string(j) + ",";
+  }
+  ofile << "bufferSize_output,";
+  for (int j = 0; j < 2; j++) {
     ofile << std::string("bufferSize_input_") + std::to_string(j) + ",";
+  }
+  ofile << "totalBandWidth_output,";
+  for (int j = 0; j < 2; j++) {
+    ofile << std::string("totalBandWidth_input_") + std::to_string(j) + ",";
   }
   ofile << "maxInitDelay_output,";
   for (int j = 0; j < 2; j++) {
@@ -219,7 +238,6 @@ void MultLevelAnalyzer::outputCSV() {
     ofile << std::to_string(float(_resultSet[i].reuseVolumn[2]) /
                             _resultSet[i].totalVolumn[2]) +
                  ",";
-    ofile << std::to_string(_resultSet[i].requiredDataSize[2]) + ",";
     for (int j = 0; j < 2; j++) {
       ofile << std::to_string(_resultSet[i].uniqueVolumn[j]) + ",";
       ofile << std::to_string(_resultSet[i].reuseVolumn[j]) + ",";
@@ -227,7 +245,14 @@ void MultLevelAnalyzer::outputCSV() {
       ofile << std::to_string(float(_resultSet[i].reuseVolumn[j]) /
                               _resultSet[i].totalVolumn[j]) +
                    ",";
+    }
+    ofile << std::to_string(_resultSet[i].requiredDataSize[2]) + ",";
+    for (int j = 0; j < 2; j++) {
       ofile << std::to_string(_resultSet[i].requiredDataSize[j]) + ",";
+    }
+    ofile << std::to_string(_resultSet[i].totalBandWidth[2]) + ",";
+    for (int j = 0; j < 2; j++) {
+      ofile << std::to_string(_resultSet[i].totalBandWidth[j]) + ",";
     }
     ofile << std::to_string(_resultSet[i].initDelay[2]) + ",";
     for (int j = 0; j < 2; j++) {

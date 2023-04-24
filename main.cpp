@@ -55,15 +55,14 @@ int main() {
   coupledVarVec1.push_back(c2);
 
   MAPPING::Transform T1(3, std::make_shared<std::vector<int>>(
-                               std::vector<int>{1, 0, 0, 0, 1, 0, 1, 1, 1}));
-  ARCH::Level L1(16);
-  L1.appendArray(3, 4, 16);
-  L1.appendBuffer(ARCH::REG, ARCH::INPUT, 128, 16);
-  L1.appendBuffer(ARCH::REG, ARCH::WEIGHT, 128, 16);
-  L1.appendBuffer(ARCH::REG, ARCH::OUTPUT, 128, 16);
-  L1.appendNetworkGroup(32, 16, ARCH::INPUT, 16, {1, 0, 1});
-  L1.appendNetworkGroup(32, 16, ARCH::WEIGHT, 16, {0, 1, 1});
-  L1.appendNetworkGroup(32, 16, ARCH::OUTPUT, 16, {0, 0, 1});
+                               std::vector<int>{1, 0, 0, 0, 1, 0, 0, 1, 1}));
+  ARCH::Level L1(3, 4, 16);
+  L1.appendBuffer(ARCH::REG, ARCH::INPUT, 128);
+  L1.appendBuffer(ARCH::REG, ARCH::WEIGHT, 128);
+  L1.appendBuffer(ARCH::REG, ARCH::OUTPUT, 128);
+  L1.appendNetworkGroup(ARCH::INPUT, 16, {1, 0, 0});
+  L1.appendNetworkGroup(ARCH::WEIGHT, 16, {0, 1, 1});
+  L1.appendNetworkGroup(ARCH::OUTPUT, 16, {0, 0, 1});
 
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec2;
   coupledVarVec2.push_back(y);
@@ -74,14 +73,13 @@ int main() {
   MAPPING::Transform T2(
       4, std::make_shared<std::vector<int>>(
              std::vector<int>{1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1}));
-  ARCH::Level L2(16);
-  L2.appendArray(32, 16, 16);
-  L2.appendBuffer(ARCH::REG, ARCH::INPUT, 128, 16);
-  L2.appendBuffer(ARCH::REG, ARCH::WEIGHT, 128, 16);
-  L2.appendBuffer(ARCH::REG, ARCH::OUTPUT, 128, 16);
-  L2.appendNetworkGroup(32, 16, ARCH::INPUT, 16, {-1, 1, 0});
-  L2.appendNetworkGroup(32, 16, ARCH::WEIGHT, 16, {1, 0, 1});
-  L2.appendNetworkGroup(32, 16, ARCH::OUTPUT, 16, {0, 1, 0}, {0, 0, 1});
+  ARCH::Level L2(32, 16, 16);
+  L2.appendBuffer(ARCH::REG, ARCH::INPUT, 128);
+  L2.appendBuffer(ARCH::REG, ARCH::WEIGHT, 128);
+  L2.appendBuffer(ARCH::REG, ARCH::OUTPUT, 128);
+  L2.appendNetworkGroup(ARCH::INPUT, 16, {-1, 1, 0});
+  L2.appendNetworkGroup(ARCH::WEIGHT, 16, {1, 0, 1});
+  L2.appendNetworkGroup(ARCH::OUTPUT, 16, {0, 1, 0}, {0, 0, 1});
 
   std::cout << I.getRange(1).first << ' ' << I.getRange(1).second << std::endl;
 

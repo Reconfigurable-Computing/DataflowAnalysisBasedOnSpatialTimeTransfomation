@@ -1,5 +1,6 @@
 #include "include/datastruct/mapping.h"
 #include "include/datastruct/workload.h"
+
 namespace MAPPING {
 MAPPING::Access constructAccessMatrix(
     WORKLOAD::Tensor &tensor,

@@ -1,4 +1,5 @@
 #include "include/util/timeline.h"
+
 bool timeLineGreater(std::shared_ptr<TimeLine> &t1,
                      std::shared_ptr<TimeLine> &t2) {
   for (int i = t1->_time.size() - 1; i >= 0; i--) {

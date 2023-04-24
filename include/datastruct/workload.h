@@ -7,7 +7,6 @@
 #include <set>
 #include <string>
 #include <vector>
-
 namespace WORKLOAD {
 class Iterator {
 private:

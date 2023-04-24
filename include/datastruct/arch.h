@@ -113,6 +113,13 @@ public:
   int getDelay(int base, int bitWidth) {
     return std::ceil(double(base) * double(bitWidth) / double(_bandWidth));
   }
+  int getBufferBandWidth() {
+    int ret = 0;
+    for (auto item : *_networkItemMap) {
+      ret += item.second->getBandWidth();
+    }
+    return ret;
+  }
 }; // end of Network
 
 class NetworkGroup {
@@ -291,6 +298,19 @@ public:
     }
     return true;
   }
+  int getBufferBandWidth() {
+    if (_networkSet->size() == 1) {
+      return (*_networkSet)[0]->getBufferBandWidth();
+    } else {
+      NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
+      NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
+      if (networkType1 == STATIONARY || networkType1 == UNICAST) {
+        return (*_networkSet)[1]->getBufferBandWidth();
+      } else {
+        return (*_networkSet)[0]->getBufferBandWidth();
+      }
+    }
+  }
 }; // end of NetworkGroup
 
 class Buffer {
@@ -315,35 +335,37 @@ private:
       _networkGroupSet;
   std::shared_ptr<Array> _array;
   int _bitWidth;
+  void appendArray(int rowNum, int colNum) {
+    _array = std::make_shared<Array>(rowNum, colNum, _bitWidth);
+  }
 
 public:
-  Level(int bitWidth) : _bitWidth(bitWidth) {
+  Level(int rowNum, int colNum, int bitWidth) : _bitWidth(bitWidth) {
     _bufferSet =
         std::make_shared<std::map<DATATYPE, std::shared_ptr<Buffer>>>();
     _networkGroupSet =
         std::make_shared<std::map<DATATYPE, std::shared_ptr<NetworkGroup>>>();
     _array = std::make_shared<Array>();
+    appendArray(rowNum, colNum);
   }
-  void appendBuffer(BufferType bufferType, DATATYPE dataType, int capacity,
-                    int wordBit) {
+  void appendBuffer(BufferType bufferType, DATATYPE dataType, int capacity) {
     (*_bufferSet)[dataType] =
-        std::make_shared<Buffer>(bufferType, dataType, capacity, wordBit);
+        std::make_shared<Buffer>(bufferType, dataType, capacity, _bitWidth);
   }
-  void appendNetworkGroup(int rowNum, int colNum, DATATYPE dataType,
-                          int bandWidth, std::vector<int> featureVec1) {
+  void appendNetworkGroup(DATATYPE dataType, int bandWidth,
+                          std::vector<int> featureVec1) {
 
     (*_networkGroupSet)[dataType] = std::make_shared<NetworkGroup>(
-        dataType, rowNum, colNum, bandWidth, featureVec1);
+        dataType, _array->getRowNum(), _array->getColNum(), bandWidth,
+        featureVec1);
   }
-  void appendNetworkGroup(int rowNum, int colNum, DATATYPE dataType,
-                          int bandWidth, std::vector<int> featureVec1,
+  void appendNetworkGroup(DATATYPE dataType, int bandWidth,
+                          std::vector<int> featureVec1,
                           std::vector<int> featureVec2) {
 
     (*_networkGroupSet)[dataType] = std::make_shared<NetworkGroup>(
-        dataType, rowNum, colNum, bandWidth, featureVec1, featureVec2);
-  }
-  void appendArray(int rowNum, int colNum, int wordBit) {
-    _array = std::make_shared<Array>(rowNum, colNum, wordBit);
+        dataType, _array->getRowNum(), _array->getColNum(), bandWidth,
+        featureVec1, featureVec2);
   }
 
   NETWORKTYPE getNetworkType(DATATYPE dataType) // to do mult network
@@ -357,14 +379,14 @@ public:
     return (*_networkGroupSet)[dataType]->getActiveAccessPointNum(PEXRange,
                                                                   PEYRange);
   }
-  int getInitOrOutDelay(DATATYPE dataType, int base, int bitWidth,
+  int getInitOrOutDelay(DATATYPE dataType, int base,
                         std::pair<int, int> &PEXRange,
                         std::pair<int, int> &PEYRange) {
-    return (*_networkGroupSet)[dataType]->getInitOrOutDelay(base, bitWidth,
+    return (*_networkGroupSet)[dataType]->getInitOrOutDelay(base, _bitWidth,
                                                             PEXRange, PEYRange);
   }
-  int getStableDelay(DATATYPE dataType, int base, int bitWidth) {
-    return (*_networkGroupSet)[dataType]->getStableDelay(base, bitWidth);
+  int getStableDelay(DATATYPE dataType, int base) {
+    return (*_networkGroupSet)[dataType]->getStableDelay(base, _bitWidth);
   }
   bool checkIfStationary(DATATYPE dataType) {
     return (*_networkGroupSet)[dataType]->checkIfStationary();
@@ -382,6 +404,9 @@ public:
     } else {
       return _array->getColNum() > PERange.second && PERange.first >= 0;
     }
+  }
+  int getBufferBandWidth(DATATYPE dataType) {
+    return (*_networkGroupSet)[dataType]->getBufferBandWidth();
   }
 }; // end of Level
 

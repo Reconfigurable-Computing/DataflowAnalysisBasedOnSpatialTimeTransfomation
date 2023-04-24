@@ -90,11 +90,11 @@ void Analyzer::delayAnalysis(std::vector<int> &innerTimeVec,
 
 int Analyzer::compOneStateStableDelay() {
   int inputStableDelay =
-      _L.getStableDelay(ARCH::INPUT, _baseSet[_curBaseIndex].baseData[0], 16);
+      _L.getStableDelay(ARCH::INPUT, _baseSet[_curBaseIndex].baseData[0]);
   int weightStableDelay =
-      _L.getStableDelay(ARCH::WEIGHT, _baseSet[_curBaseIndex].baseData[1], 16);
+      _L.getStableDelay(ARCH::WEIGHT, _baseSet[_curBaseIndex].baseData[1]);
   int outputStableDelay =
-      _L.getStableDelay(ARCH::OUTPUT, _baseSet[_curBaseIndex].baseData[2], 16);
+      _L.getStableDelay(ARCH::OUTPUT, _baseSet[_curBaseIndex].baseData[2]);
   if (_curBaseIndex == 0) {
     _result->stableDelay[ARCH::INPUT] =
         std::max(_result->stableDelay[ARCH::INPUT], inputStableDelay);
@@ -113,13 +113,11 @@ int Analyzer::compOneStateStableDelay() {
 int Analyzer::compOneStateInitDelay(std::pair<int, int> &PEXRange,
                                     std::pair<int, int> &PEYRange) {
   int inputInitDelay = _L.getInitOrOutDelay(
-      ARCH::INPUT, _baseSet[_curBaseIndex].baseData[0], 16, PEXRange, PEYRange);
-  int weightInitDelay =
-      _L.getInitOrOutDelay(ARCH::WEIGHT, _baseSet[_curBaseIndex].baseData[1],
-                           16, PEXRange, PEYRange);
-  int outputOutDelay =
-      _L.getInitOrOutDelay(ARCH::OUTPUT, _baseSet[_curBaseIndex].baseData[2],
-                           16, PEXRange, PEYRange);
+      ARCH::INPUT, _baseSet[_curBaseIndex].baseData[0], PEXRange, PEYRange);
+  int weightInitDelay = _L.getInitOrOutDelay(
+      ARCH::WEIGHT, _baseSet[_curBaseIndex].baseData[1], PEXRange, PEYRange);
+  int outputOutDelay = _L.getInitOrOutDelay(
+      ARCH::OUTPUT, _baseSet[_curBaseIndex].baseData[2], PEXRange, PEYRange);
   if (_curBaseIndex == 0) {
     _result->initDelay[ARCH::INPUT] =
         std::max(_result->initDelay[ARCH::INPUT], inputInitDelay);
@@ -346,6 +344,11 @@ void Analyzer::compRequiredDataSize() {
   _result->requiredDataSize[ARCH::INPUT] = _I.getVolumn();
   _result->requiredDataSize[ARCH::WEIGHT] = _W.getVolumn();
 }
+
+int Analyzer::compTotalBandWidth(ARCH::DATATYPE dataType) {
+  return _L.getBufferBandWidth(dataType);
+}
+
 std::shared_ptr<Result> Analyzer::getResult() { return _result; }
 int Analyzer::getOccTimes() {
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> varVec;
