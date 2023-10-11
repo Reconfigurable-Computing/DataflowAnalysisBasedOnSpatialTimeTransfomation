@@ -51,9 +51,7 @@ private:
 public:
   Transform(int dimNum,
             std::shared_ptr<std::vector<mappingValueType>> transformMatrix)
-      : Matrix2D(dimNum, transformMatrix) {
-    DEBUG::check(check(), DEBUG::TMATRIXERROR, to_string());
-  }
+      : Matrix2D(dimNum, transformMatrix) {}
   void addExtraSpatial() {
     _colNum++;
     int addElementNum = _colNum * _colNum - (_colNum - 1) * (_colNum - 1);
@@ -72,52 +70,78 @@ public:
       (*_value)[i * _colNum] = 0;
     }
   }
+
+  void addExtraTemporal() {
+    _colNum++;
+    int addElementNum = _colNum * _colNum - (_colNum - 1) * (_colNum - 1);
+    for (int i = 0; i < addElementNum; i++) {
+      _value->push_back(0);
+    }
+
+    for (int i = _colNum - 2; i >= 0; i--) {
+      for (int j = _colNum - 2; j >= 0; j--) {
+
+        (*_value)[i * _colNum + j] = (*_value)[i * (_colNum - 1) + j];
+      }
+    }
+    (*_value)[_colNum * _colNum - 1] = 1;
+    for (int i = 0; i < _colNum - 1; i++) {
+      (*_value)[i * _colNum + _colNum - 1] = 0;
+    }
+  }
+
   bool check() {
     if (_value->size() != _colNum * _colNum)
       return 0;
-    int PEX, PEY;
-    for (int j = 0; j < _colNum; j++) {
-
-      if (operator()(0, j) == 1 && operator()(1, j) == 1)
-        return 0;
-      else if (operator()(0, j) == 1)
-        PEX = j;
-      else if (operator()(1, j) == 1)
-        PEY = j;
-    }
-    std::vector<int> rowOnesCount(_colNum, 0);
+    std::vector<std::set<int>> coupledVec(_colNum);
     for (int i = 0; i < _colNum; i++) {
       for (int j = 0; j < _colNum; j++) {
         if (operator()(i, j) != 1 && operator()(i, j) != 0)
-          return 0;
-        else if (operator()(i, j) == 1) {
-          rowOnesCount[i]++;
-        }
+          return false;
+        if (operator()(i, j) == 1)
+          coupledVec[i].insert(j);
       }
     }
-    if (rowOnesCount[0] > 1 || rowOnesCount[1] > 1)
-      return 0;
+    // check PE dim num
+    if (coupledVec[0].size() != 1 || coupledVec[1].size() != 1)
+      return false;
+    int PEX = *coupledVec[0].begin();
+    int PEY = *coupledVec[1].begin();
+    if (PEX == PEY)
+      return false;
+    // check Time dim
     int count = 0;
-    int index;
+    int index = -1;
     for (int i = 2; i < _colNum; i++) {
-      if (rowOnesCount[i] > 1) {
+      if (coupledVec[i].size() == 0)
+        return false;
+      if (coupledVec[i].size() > 1) {
         count++;
-        if (count > 1)
-          return 0;
         index = i;
-      } else if (rowOnesCount[i] == 0)
-        return 0;
-    }
-    count = 0;
-    for (int j = 2; j < _colNum; j++) {
-      if (operator()(index, j) != 1) {
-        count++;
-        if (count > 1)
-          return 0;
       }
     }
-
-    return 1;
+    if (count > 1)
+      return false;
+    if (index != -1) {
+      count = coupledVec[index].size();
+      if (operator()(index, PEX) == 1)
+        count--;
+      if (operator()(index, PEY) == 1)
+        count--;
+      if (count != 1)
+        return false;
+    }
+    // check column
+    std::set<int> exist;
+    for (int i = 2; i < _colNum; i++) {
+      for (auto dim : coupledVec[i]) {
+        if (exist.count(dim))
+          return false;
+        else
+          exist.insert(dim);
+      }
+    }
+    return true;
   }
 
 }; // end of Transform
@@ -127,8 +151,10 @@ public:
   Access(int colNum,
          std::shared_ptr<std::vector<mappingValueType>> accessMatrix)
       : Matrix2D(colNum, accessMatrix) {}
+  bool isScalar() { return _value->size() == 0; }
 }; // end of Access
 MAPPING::Access constructAccessMatrix(
     WORKLOAD::Tensor &tensor,
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec);
+
 } // namespace MAPPING

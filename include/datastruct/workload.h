@@ -254,6 +254,7 @@ private:
   std::shared_ptr<std::vector<std::shared_ptr<Polynomial>>> _dimensionTable;
   std::string _sym;
   std::shared_ptr<std::vector<int>> _coupled;
+  std::set<std::shared_ptr<WORKLOAD::Iterator>> _varSet;
   int compOneStateVolumn() {
     int ret = 1;
     for (auto dim : *_dimensionTable) {
@@ -278,16 +279,29 @@ public:
   }
   Tensor &operator[](std::shared_ptr<Polynomial> p) {
     _dimensionTable->push_back(p);
+    constructVarSet((*_dimensionTable)[_dimensionTable->size() - 1]);
     return *this;
   }
   Tensor &operator[](std::shared_ptr<Iterator> i) {
     _dimensionTable->push_back(std::make_shared<Polynomial>(i));
+    constructVarSet((*_dimensionTable)[_dimensionTable->size() - 1]);
     return *this;
   }
   Tensor &operator[](std::shared_ptr<Monomial> m) {
     _dimensionTable->push_back(std::make_shared<Polynomial>(m));
+    constructVarSet((*_dimensionTable)[_dimensionTable->size() - 1]);
     return *this;
   }
+
+  void constructVarSet(std::shared_ptr<Polynomial> dim) {
+    auto oneDimVarVec = dim->getVarVec();
+    for (auto var : oneDimVarVec) {
+      if (!_varSet.count(var)) {
+        _varSet.insert(var);
+      }
+    }
+  }
+
   std::string to_string() {
     std::string ret;
     ret += _sym;
@@ -336,22 +350,12 @@ public:
   }
 
   int getVolumn() {
-    std::set<std::shared_ptr<WORKLOAD::Iterator>> varSet;
-    for (auto dim : *_dimensionTable) {
-      auto oneDimVarVec = dim->getVarVec();
-      for (auto var : oneDimVarVec) {
-        if (!varSet.count(var)) {
-          varSet.insert(var);
-        }
-      }
-    }
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> varVec;
-    for (auto it = varSet.begin(); it != varSet.end(); it++) {
+    for (auto it = _varSet.begin(); it != _varSet.end(); it++) {
       varVec.push_back(*it);
     }
     std::vector<std::vector<int>> state;
     generateEdgeState(state, varVec);
-
     int stateNum = state.size();
     int varNum = varVec.size();
     int ret = 0;
@@ -372,6 +376,26 @@ public:
             varVec[j]->unsetEdge();
           }
         }
+      }
+    }
+    return ret;
+  }
+
+  int getUniqueVolumn(
+      std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec) {
+    std::set<std::shared_ptr<WORKLOAD::Iterator>> coupledVarSet;
+    for (auto var : coupledVarVec) {
+      coupledVarSet.insert(var);
+    }
+    for (auto var : _varSet) {
+      if (coupledVarSet.count(var) == 0) {
+        var->lock();
+      }
+    }
+    int ret = compOneStateVolumn();
+    for (auto var : _varSet) {
+      if (coupledVarSet.count(var) == 0) {
+        var->unlock();
       }
     }
     return ret;

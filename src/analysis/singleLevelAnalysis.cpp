@@ -75,12 +75,7 @@ void Analyzer::delayAnalysis(std::vector<int> &innerTimeVec,
       changeEdgeByState(0, innerVarNum, i, state, innerVarVec);
     }
   }
-  if (_lowestFlag || !_doubleBufferFlag) {
-    delay += initDelay;
-  } else // doublebuffer
-  {
-    delay = std::max(initDelay, delay);
-  }
+  delay += initDelay;
   _result->delay += outerTimeSize * delay;
   _result->compCycle += outerTimeSize * compCycle;
   _result->activePEMultTimeNum += outerTimeSize * activePEMultTimeNum;
@@ -105,9 +100,15 @@ int Analyzer::compOneStateStableDelay() {
     _result->stableDelay[3] = std::max(_result->stableDelay[3],
                                        _baseSet[_curBaseIndex].baseCompCycle);
   }
-  return std::max(std::max(std::max(inputStableDelay, weightStableDelay),
-                           outputStableDelay),
-                  _baseSet[_curBaseIndex].baseCompCycle);
+  if (_doubleBufferFlag) {
+    return std::max(std::max(std::max(inputStableDelay, weightStableDelay),
+                             outputStableDelay),
+                    _baseSet[_curBaseIndex].baseCompCycle);
+  } else {
+    return std::max(std::max(inputStableDelay, weightStableDelay),
+                    outputStableDelay) +
+           _baseSet[_curBaseIndex].baseCompCycle;
+  }
 }
 
 int Analyzer::compOneStateInitDelay(std::pair<int, int> &PEXRange,
@@ -126,7 +127,8 @@ int Analyzer::compOneStateInitDelay(std::pair<int, int> &PEXRange,
     _result->initDelay[ARCH::OUTPUT] =
         std::max(_result->initDelay[ARCH::OUTPUT], outputOutDelay);
   }
-  return std::max(std::max(inputInitDelay, weightInitDelay), outputOutDelay);
+  return std::max(inputInitDelay, weightInitDelay) + outputOutDelay +
+         _baseSet[_curBaseIndex].baseCompCycle;
 }
 
 void Analyzer::compOneStateDelay(std::vector<int> &innerTimeVec, int &delay,
@@ -134,8 +136,8 @@ void Analyzer::compOneStateDelay(std::vector<int> &innerTimeVec, int &delay,
                                  int &activePEMultTimeNum) {
   std::pair<int, int> PEXRange = compTRange(0);
   std::pair<int, int> PEYRange = compTRange(1);
-  int curDelay = compOneStateStableDelay() * compOneStateTimeSize(innerTimeVec);
-  delay += curDelay;
+  delay += compOneStateStableDelay() * (compOneStateTimeSize(innerTimeVec) - 1);
+
   PEX->lock();
   PEY->lock();
   int curCompCycle = _baseSet[_curBaseIndex].baseCompCycle *
@@ -155,9 +157,9 @@ void Analyzer::accessAnalysis(std::vector<int> &innerTimeVec,
   int outerTimeSize = compOneStateTimeSize(outerTimeVec);
   PEX->unlock();
   PEY->unlock();
-  compOneDataVolumn(ARCH::OUTPUT, _accessO, innerTimeVec, outerTimeSize);
-  compOneDataVolumn(ARCH::INPUT, _accessI, innerTimeVec, outerTimeSize);
-  compOneDataVolumn(ARCH::WEIGHT, _accessW, innerTimeVec, outerTimeSize);
+  compOneDataVolumn(ARCH::OUTPUT, _accessO, innerTimeVec, outerTimeSize, _O);
+  compOneDataVolumn(ARCH::INPUT, _accessI, innerTimeVec, outerTimeSize, _I);
+  compOneDataVolumn(ARCH::WEIGHT, _accessW, innerTimeVec, outerTimeSize, _W);
 }
 
 std::pair<int, int> Analyzer::compTRange(int row) {
@@ -174,18 +176,19 @@ std::pair<int, int> Analyzer::compTRange(int row) {
 
 void Analyzer::compOneStateVolumn(int &uniqueVolumn, int &totalVolumn,
                                   std::vector<int> &innerTimeVec,
-                                  ARCH::DATATYPE dataType) {
+                                  ARCH::DATATYPE dataType,
+                                  WORKLOAD::Tensor &curTensor) {
   std::pair<int, int> PEXRange = compTRange(0);
   std::pair<int, int> PEYRange = compTRange(1);
   ARCH::NETWORKTYPE networkType = _L.getNetworkType(dataType);
   PEX->lock();
   PEY->lock();
-  int timeSize = compOneStateTimeSize(innerTimeVec);
-  PEX->unlock();
-  PEY->unlock();
-  totalVolumn += timeSize * _baseSet[_curBaseIndex].baseData[dataType] *
+  totalVolumn += compOneStateTimeSize(innerTimeVec) *
+                 _baseSet[_curBaseIndex].baseData[dataType] *
                  (PEYRange.second - PEYRange.first + 1) *
                  (PEXRange.second - PEXRange.first + 1);
+  PEX->unlock();
+  PEY->unlock();
   if (_L.checkIfStationary(dataType)) {
     if (networkType == ARCH::SYSTOLIC || networkType == ARCH::MULTICAST) {
       uniqueVolumn = std::max(
@@ -199,21 +202,32 @@ void Analyzer::compOneStateVolumn(int &uniqueVolumn, int &totalVolumn,
                                      (PEXRange.second - PEXRange.first + 1));
     }
   } else {
+    PEX->lock();
+    PEY->lock();
+    if (_L.checkIfUnlockPEDim(0, dataType))
+      PEX->unlock();
+    if (_L.checkIfUnlockPEDim(1, dataType))
+      PEY->unlock();
     if (networkType == ARCH::SYSTOLIC || networkType == ARCH::MULTICAST) {
-      uniqueVolumn += timeSize * _baseSet[_curBaseIndex].baseData[dataType] *
+      uniqueVolumn += curTensor.getUniqueVolumn(_coupledVarVec) *
+                      _baseSet[_curBaseIndex].baseData[dataType] *
                       _L.getActiveAccessPointNum(dataType, PEXRange, PEYRange);
     } else {
-      uniqueVolumn += timeSize * _baseSet[_curBaseIndex].baseData[dataType] *
+      uniqueVolumn += curTensor.getUniqueVolumn(_coupledVarVec) *
+                      _baseSet[_curBaseIndex].baseData[dataType] *
                       (PEYRange.second - PEYRange.first + 1) *
                       (PEXRange.second - PEXRange.first + 1);
     }
+    PEX->unlock();
+    PEY->unlock();
   }
 }
 
 void Analyzer::compOneDataVolumn(ARCH::DATATYPE dataType,
                                  MAPPING::Access &access,
                                  std::vector<int> &innerTimeVec,
-                                 int outerTimeSize) {
+                                 int outerTimeSize,
+                                 WORKLOAD::Tensor &curTensor) {
   ARCH::NETWORKTYPE networkType = _L.getNetworkType(dataType);
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> innerVarVec;
   generateVarVec(innerTimeVec, innerVarVec);
@@ -224,11 +238,13 @@ void Analyzer::compOneDataVolumn(ARCH::DATATYPE dataType,
   int stateNum = state.size();
   int innerVarNum = innerVarVec.size();
   if (stateNum == 0) {
-    compOneStateVolumn(uniqueVolumn, totalVolumn, innerTimeVec, dataType);
+    compOneStateVolumn(uniqueVolumn, totalVolumn, innerTimeVec, dataType,
+                       curTensor);
   } else {
     for (int i = 0; i < stateNum; i++) {
       changeEdgeByState(1, innerVarNum, i, state, innerVarVec);
-      compOneStateVolumn(uniqueVolumn, totalVolumn, innerTimeVec, dataType);
+      compOneStateVolumn(uniqueVolumn, totalVolumn, innerTimeVec, dataType,
+                         curTensor);
       changeEdgeByState(0, innerVarNum, i, state, innerVarVec);
     }
   }

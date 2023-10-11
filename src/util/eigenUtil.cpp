@@ -283,3 +283,11 @@ compReuseVec(MAPPING::Transform &T, MAPPING::Access &A) {
   reuseVec->pop_back(); // remove particular solution
   return reuseVec;
 }
+std::shared_ptr<std::vector<std::vector<int>>> scalarReuseVec(int coupledNum) {
+  std::shared_ptr<std::vector<std::vector<int>>> reuseVec =
+      std::make_shared<std::vector<std::vector<int>>>(
+          2, std::vector<int>(coupledNum, 0));
+  (*reuseVec)[0][0] = 1;
+  (*reuseVec)[1][1] = 1;
+  return reuseVec;
+}

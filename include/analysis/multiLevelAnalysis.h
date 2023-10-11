@@ -5,6 +5,7 @@
 #include <queue>
 #include <set>
 #include <vector>
+
 class MultLevelAnalyzer {
 private:
   std::vector<Analyzer> _analyzerSet;

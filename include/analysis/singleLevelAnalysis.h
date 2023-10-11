@@ -30,7 +30,6 @@ private:
   std::shared_ptr<WORKLOAD::Iterator> PEX;
   std::shared_ptr<WORKLOAD::Iterator> PEY;
   bool _doubleBufferFlag;
-  bool _lowestFlag;
 
   std::vector<Base> _baseSet;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> _curSubCoupledVarVec;
@@ -48,7 +47,8 @@ private:
   void generateVarVec(std::vector<int> &timeVec,
                       std::vector<std::shared_ptr<WORKLOAD::Iterator>> &varVec);
   void compOneDataVolumn(ARCH::DATATYPE dataType, MAPPING::Access &access,
-                         std::vector<int> &innerTimeVec, int outerTimeSize);
+                         std::vector<int> &innerTimeVec, int outerTimeSize,
+                         WORKLOAD::Tensor &curTensor);
   int compOneStateStableDelay();
   int compOneStateInitDelay(std::pair<int, int> &PEXRange,
                             std::pair<int, int> &PEYRange);
@@ -64,7 +64,7 @@ private:
   void changeBase();
   void compOneStateVolumn(int &uniqueVolumn, int &totalVolumn,
                           std::vector<int> &innerTimeVec,
-                          ARCH::DATATYPE dataType);
+                          ARCH::DATATYPE dataType, WORKLOAD::Tensor &curTensor);
   void
   changeEdgeByState(bool flag, int varNum, int i,
                     std::vector<std::vector<int>> &state,
@@ -73,17 +73,25 @@ private:
 public:
   Analyzer(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
            MAPPING::Transform &T, WORKLOAD::Tensor &I, WORKLOAD::Tensor &W,
-           WORKLOAD::Tensor &O, ARCH::Level &L, bool lowestFlag,
-           bool doubleBufferFlag)
+           WORKLOAD::Tensor &O, ARCH::Level &L, bool doubleBufferFlag)
       : _coupledVarVec(coupledVarVec), _T(T), _I(I), _W(W), _O(O), _L(L),
         _accessI(MAPPING::constructAccessMatrix(I, coupledVarVec)),
         _accessW(MAPPING::constructAccessMatrix(W, coupledVarVec)),
         _accessO(MAPPING::constructAccessMatrix(O, coupledVarVec)),
-        _doubleBufferFlag(doubleBufferFlag), _lowestFlag(lowestFlag) {
-
-    _reuseVecI = compReuseVec(T, _accessI);
-    _reuseVecW = compReuseVec(T, _accessW);
-    _reuseVecO = compReuseVec(T, _accessO);
+        _doubleBufferFlag(doubleBufferFlag) {
+    DEBUG::check(T.check(), DEBUG::TMATRIXERROR, T.to_string());
+    if (!_accessI.isScalar())
+      _reuseVecI = compReuseVec(T, _accessI);
+    else
+      _reuseVecI = scalarReuseVec(_coupledVarVec.size());
+    if (!_accessW.isScalar())
+      _reuseVecW = compReuseVec(T, _accessW);
+    else
+      _reuseVecW = scalarReuseVec(_coupledVarVec.size());
+    if (!_accessO.isScalar())
+      _reuseVecO = compReuseVec(T, _accessO);
+    else
+      _reuseVecO = scalarReuseVec(_coupledVarVec.size());
     // getTimeLine(coupledVarVec, T, I, W, O);
 
     int colNum = _T.getColNum();

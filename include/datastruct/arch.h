@@ -251,7 +251,18 @@ public:
       std::pair<int, int> &PEXRange,
       std::pair<int, int> &PEYRange) // to do mult network
   {
-    return (*_networkSet)[0]->getActiveAccessPointNum(PEXRange, PEYRange);
+
+    if (_networkSet->size() == 1) {
+      return (*_networkSet)[0]->getActiveAccessPointNum(PEXRange, PEYRange);
+    } else {
+      if (checkIfStationary()) // for multicast-stationary or
+                               // systolic-stationary
+      {
+        return (*_networkSet)[0]->getActiveAccessPointNum(PEXRange, PEYRange);
+      } else {
+        return 1;
+      }
+    }
   }
   bool checkIfStationary() {
     if (_networkSet->size() == 1) {
@@ -283,20 +294,24 @@ public:
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     if (networkType1 == UNICAST)
       return true;
-    bool ret = true;
-    for (auto &fvec : _featureVec) {
-      bool flag = false;
-      for (auto &rvec : *reuseVec) {
-        if (compareReuseVecAndFeatureVec(fvec, rvec)) {
-          flag = true;
-          break;
+    if (_networkSet->size() == 1) {
+      bool ret = true;
+      for (auto &fvec : _featureVec) {
+        bool flag = false;
+        for (auto &rvec : *reuseVec) {
+          if (compareReuseVecAndFeatureVec(fvec, rvec)) {
+            flag = true;
+            break;
+          }
+        }
+        if (!flag) {
+          return false;
         }
       }
-      if (!flag) {
-        return false;
-      }
+      return true;
+    } else {
+      NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
     }
-    return true;
   }
   int getBufferBandWidth() {
     if (_networkSet->size() == 1) {
@@ -309,6 +324,23 @@ public:
       } else {
         return (*_networkSet)[0]->getBufferBandWidth();
       }
+    }
+  }
+  bool checkIfUnlockPEDim(int index) {
+    assert(index == 0 || index == 1);
+    if (_networkSet->size() == 1) {
+      if (_featureVec[0][index] == 1 && _featureVec[0][1 - index] == 0)
+        return true;
+      else
+        return false;
+    } else if ((*_networkSet)[0]->getNetworkType() == UNICAST) {
+      return false;
+    } else {
+      if ((_featureVec[0][index] == 1 && _featureVec[0][1 - index] == 0) ||
+          (_featureVec[1][index] == 1 && _featureVec[1][1 - index] == 0))
+        return true;
+      else
+        return false;
     }
   }
 }; // end of NetworkGroup
@@ -407,6 +439,9 @@ public:
   }
   int getBufferBandWidth(DATATYPE dataType) {
     return (*_networkGroupSet)[dataType]->getBufferBandWidth();
+  }
+  bool checkIfUnlockPEDim(int index, DATATYPE dataType) {
+    return (*_networkGroupSet)[dataType]->checkIfUnlockPEDim(index);
   }
 }; // end of Level
 

@@ -140,9 +140,10 @@ int NetworkGroup::getStableDelay(int base, int bitWidth) {
   } else {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
-    if (networkType1 == STATIONARY || networkType1 == UNICAST ||
-        networkType2 == STATIONARY) {
+    if (networkType1 == STATIONARY || networkType2 == STATIONARY) {
       return 0;
+    } else if (networkType1 == UNICAST) {
+      return (*_networkSet)[1]->getDelay(base, bitWidth);
     } else {
       return std::max((*_networkSet)[0]->getDelay(base, bitWidth),
                       (*_networkSet)[1]->getDelay(base, bitWidth));

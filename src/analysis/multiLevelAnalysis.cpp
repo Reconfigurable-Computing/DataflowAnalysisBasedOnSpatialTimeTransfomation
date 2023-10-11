@@ -1,5 +1,4 @@
 #include "include/analysis/multiLevelAnalysis.h"
-
 void MultLevelAnalyzer::addLevel(
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
     MAPPING::Transform &T, ARCH::Level &L, int spatialDimNum,
@@ -19,17 +18,18 @@ void MultLevelAnalyzer::addLevel(
                          std::make_shared<WORKLOAD::Iterator>(
                              WORKLOAD::Iterator(0, 0, "tmpPEX")));
   }
+  assert(coupledVarVec.size() >= 2);
+  if (coupledVarVec.size() == 2) {
+    T.addExtraTemporal();
+    coupledVarVec.push_back(
+        std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 1, "tmpT")));
+  }
 
   for (auto var : coupledVarVec) {
     _allCoupledVarVec.push_back(var);
   }
-  if (_analyzerSet.size() == 0) {
-    _analyzerSet.push_back(
-        Analyzer(coupledVarVec, T, _I, _W, _O, L, true, doubleBufferFlag));
-  } else {
-    _analyzerSet.push_back(
-        Analyzer(coupledVarVec, T, _I, _W, _O, L, false, doubleBufferFlag));
-  }
+  _analyzerSet.push_back(
+      Analyzer(coupledVarVec, T, _I, _W, _O, L, doubleBufferFlag));
   _resultSet.push_back(Result());
 }
 
@@ -196,7 +196,7 @@ void MultLevelAnalyzer::oneAnalysis() {
 void MultLevelAnalyzer::outputCSV() {
   int levelNum = _analyzerSet.size();
   std::ofstream ofile;
-  ofile.open("result.csv", std::ios::trunc);
+  ofile.open("result.csv", std::ios::out);
   ofile << "level ,";
   ofile << "unique_output,";
   ofile << "reuse_output,";

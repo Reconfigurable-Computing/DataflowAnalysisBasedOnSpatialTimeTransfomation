@@ -109,3 +109,4 @@ solvingLinearEquations(std::vector<std::vector<int>> &matrix,
                        std::vector<int> &b);
 std::shared_ptr<std::vector<std::vector<int>>>
 compReuseVec(MAPPING::Transform &T, MAPPING::Access &A);
+std::shared_ptr<std::vector<std::vector<int>>> scalarReuseVec(int coupledNum);
