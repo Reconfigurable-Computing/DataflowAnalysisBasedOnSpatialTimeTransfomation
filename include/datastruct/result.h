@@ -1,4 +1,5 @@
 #pragma once
+#include "include/datastruct/mapping.h"
 #include <memory>
 #include <vector>
 struct Base {
@@ -17,7 +18,7 @@ struct Base {
     }
   }
 };
-struct Result {
+struct AnalyzerResult {
   int uniqueVolumn[3]; // input weight output
   int totalVolumn[3];
   int reuseVolumn[3];
@@ -33,8 +34,8 @@ struct Result {
   int totalPEMultTimeNum;
   float PEUtilRate;
   int totalBandWidth[3];
-  std::vector<std::shared_ptr<Result>> subLevelResultVec;
-  Result() { reset(); }
+  std::vector<std::shared_ptr<AnalyzerResult>> subLevelResultVec;
+  AnalyzerResult() { reset(); }
   void reset() {
     for (int i = 0; i < 3; i++) {
       uniqueVolumn[i] = 0;
@@ -55,7 +56,7 @@ struct Result {
     totalPEMultTimeNum = 0;
     PEUtilRate = 0;
   }
-  Result &operator+=(Result &other) {
+  AnalyzerResult &operator+=(AnalyzerResult &other) {
     for (int i = 0; i < 3; i++) {
       uniqueVolumn[i] += other.uniqueVolumn[i] * other.occTimes;
       totalVolumn[i] += other.totalVolumn[i] * other.occTimes;
@@ -77,4 +78,9 @@ struct Result {
     PEUtilRate = 0;
     return *this;
   }
+};
+
+class TransformSearchResult {
+  MAPPING::Transform _T;
+  std::shared_ptr<AnalyzerResult> _result;
 };

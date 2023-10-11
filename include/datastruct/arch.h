@@ -311,6 +311,7 @@ public:
       return true;
     } else {
       NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
+      return true;
     }
   }
   int getBufferBandWidth() {

@@ -25,7 +25,7 @@ void Analyzer::changeBase() {
 }
 
 void Analyzer::oneAnalysis() {
-  _result = std::make_shared<Result>(Result());
+  _result = std::make_shared<AnalyzerResult>(AnalyzerResult());
   std::vector<int> innerTimeVec;
   std::vector<int> outerTimeVec;
   constructInnerOuterTimeVec(innerTimeVec, outerTimeVec);
@@ -365,7 +365,7 @@ int Analyzer::compTotalBandWidth(ARCH::DATATYPE dataType) {
   return _L.getBufferBandWidth(dataType);
 }
 
-std::shared_ptr<Result> Analyzer::getResult() { return _result; }
+std::shared_ptr<AnalyzerResult> Analyzer::getResult() { return _result; }
 int Analyzer::getOccTimes() {
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> varVec;
   for (auto &var : _coupledVarVec) {
@@ -408,7 +408,7 @@ int Analyzer::getOccTimes() {
   return ret;
 }
 void Analyzer::setSubLevelResultVec(
-    std::vector<std::shared_ptr<Result>> &subLevelResultVec) {
+    std::vector<std::shared_ptr<AnalyzerResult>> &subLevelResultVec) {
   _result->subLevelResultVec = subLevelResultVec;
 }
 void Analyzer::changeEdgeByState(

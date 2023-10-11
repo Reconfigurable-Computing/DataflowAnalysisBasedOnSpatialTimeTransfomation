@@ -1,7 +1,9 @@
 INCLUDE := -I $(shell pwd) -I /usr/include -g
-main:main.o workload.o arch.o mapping.o eigenUtil.o debug.o singleLevelAnalysis.o multiLevelAnalysis.o timeline.o
-	g++ main.o workload.o arch.o mapping.o eigenUtil.o debug.o singleLevelAnalysis.o multiLevelAnalysis.o timeline.o -o main ${INCLUDE} 
+main:main.o workload.o arch.o mapping.o eigenUtil.o debug.o singleLevelAnalysis.o multiLevelAnalysis.o transformSearchEngine.o timeline.o
+	g++ main.o workload.o arch.o mapping.o eigenUtil.o debug.o singleLevelAnalysis.o multiLevelAnalysis.o transformSearchEngine.o timeline.o -o main ${INCLUDE} 
 	rm -r ./*.o
+transformSearchEngine.o:src/searchEngine/transformSearchEngine.cpp
+	g++ -c src/searchEngine/transformSearchEngine.cpp ${INCLUDE}
 workload.o:src/datastruct/workload.cpp
 	g++ -c src/datastruct/workload.cpp ${INCLUDE}
 arch.o:src/datastruct/arch.cpp 

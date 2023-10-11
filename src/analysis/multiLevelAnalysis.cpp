@@ -3,6 +3,37 @@ void MultLevelAnalyzer::addLevel(
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
     MAPPING::Transform &T, ARCH::Level &L, int spatialDimNum,
     bool doubleBufferFlag) {
+  for (auto var : coupledVarVec) {
+    _allCoupledVarVec.push_back(var);
+  }
+  extendT(coupledVarVec, spatialDimNum, T);
+  Analyzer analyzer =
+      Analyzer(coupledVarVec, T, _I, _W, _O, L, doubleBufferFlag);
+  if (!analyzer.constraintCheckAndBuildAnalyzer())
+    _validFlags.push_back(false);
+  else
+    _validFlags.push_back(true);
+  _analyzerSet.emplace_back(analyzer);
+  _resultSet.push_back(AnalyzerResult());
+}
+void MultLevelAnalyzer::addLevel(
+    std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
+    ARCH::Level &L, int spatialDimNum, bool doubleBufferFlag) {
+  for (auto var : coupledVarVec) {
+    _allCoupledVarVec.push_back(var);
+  }
+  MAPPING::Transform T(coupledVarVec.size());
+  extendT(coupledVarVec, spatialDimNum, T);
+  Analyzer analyzer =
+      Analyzer(coupledVarVec, T, _I, _W, _O, L, doubleBufferFlag);
+  _validFlags.push_back(false);
+  _analyzerSet.emplace_back(analyzer);
+  _resultSet.push_back(AnalyzerResult());
+}
+
+void MultLevelAnalyzer::extendT(
+    std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
+    int spatialDimNum, MAPPING::Transform &T) {
   if (spatialDimNum == 1) {
     T.addExtraSpatial();
     coupledVarVec.insert(coupledVarVec.begin(),
@@ -18,19 +49,11 @@ void MultLevelAnalyzer::addLevel(
                          std::make_shared<WORKLOAD::Iterator>(
                              WORKLOAD::Iterator(0, 0, "tmpPEX")));
   }
-  assert(coupledVarVec.size() >= 2);
   if (coupledVarVec.size() == 2) {
     T.addExtraTemporal();
     coupledVarVec.push_back(
         std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 1, "tmpT")));
   }
-
-  for (auto var : coupledVarVec) {
-    _allCoupledVarVec.push_back(var);
-  }
-  _analyzerSet.push_back(
-      Analyzer(coupledVarVec, T, _I, _W, _O, L, doubleBufferFlag));
-  _resultSet.push_back(Result());
 }
 
 void MultLevelAnalyzer::compRequiredDataSize(int level) {
@@ -94,7 +117,7 @@ void MultLevelAnalyzer::changeEdgeByState(
 }
 
 void MultLevelAnalyzer::generateSublevelBaseResult(
-    int level, std::vector<std::shared_ptr<Result>> &subLevelResultVec,
+    int level, std::vector<std::shared_ptr<AnalyzerResult>> &subLevelResultVec,
     std::map<std::shared_ptr<WORKLOAD::Iterator>,
              std::shared_ptr<WORKLOAD::Iterator>> &subLevelEdgeMap,
     std::vector<Base> &baseVec) {
@@ -132,7 +155,7 @@ void MultLevelAnalyzer::generateSublevelBaseResult(
 
 void MultLevelAnalyzer::recusiveAnalysis(int level) {
   if (level != 0) {
-    std::vector<std::shared_ptr<Result>> subLevelResultVec;
+    std::vector<std::shared_ptr<AnalyzerResult>> subLevelResultVec;
     std::map<std::shared_ptr<WORKLOAD::Iterator>,
              std::shared_ptr<WORKLOAD::Iterator>>
         subLevelEdgeMap;
@@ -154,13 +177,11 @@ void MultLevelAnalyzer::recusiveAnalysis(int level) {
 }
 
 void MultLevelAnalyzer::compMultiLevelReuslt(
-    std::shared_ptr<Result> resultTreeRoot) {
+    std::shared_ptr<AnalyzerResult> resultTreeRoot) {
   compMultiLevelReusltDFS(resultTreeRoot, _analyzerSet.size() - 1);
   int levelNum = _analyzerSet.size();
-  for (auto &result : _resultSet) {
-  }
   for (int i = 0; i < levelNum; i++) {
-    Result &result = _resultSet[i];
+    AnalyzerResult &result = _resultSet[i];
     result.compRate = result.compCycle / result.compRate;
     result.PEUtilRate =
         float(result.activePEMultTimeNum) / result.totalPEMultTimeNum;
@@ -173,8 +194,8 @@ void MultLevelAnalyzer::compMultiLevelReuslt(
   }
 }
 
-void MultLevelAnalyzer::compMultiLevelReusltDFS(std::shared_ptr<Result> node,
-                                                int level) {
+void MultLevelAnalyzer::compMultiLevelReusltDFS(
+    std::shared_ptr<AnalyzerResult> node, int level) {
   int occTimes = node->occTimes;
   _resultSet[level] += *node;
   for (auto item : node->subLevelResultVec) {
@@ -190,7 +211,7 @@ void MultLevelAnalyzer::oneAnalysis() {
   resultTreeRoot->occTimes = 1;
   compMultiLevelReuslt(resultTreeRoot);
 
-  outputCSV();
+  // outputCSV();
 }
 
 void MultLevelAnalyzer::outputCSV() {
@@ -267,6 +288,7 @@ void MultLevelAnalyzer::outputCSV() {
     ofile << std::to_string(_resultSet[i].delay) + ",";
     ofile << std::to_string(_resultSet[i].compRate) + ",";
     ofile << std::to_string(_resultSet[i].PEUtilRate) << std::endl;
+    std::cout << _resultSet[i].delay << std::endl;
   }
   ofile.close();
 }

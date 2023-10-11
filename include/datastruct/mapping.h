@@ -15,6 +15,10 @@ protected:
 public:
   Matrix2D(int colNum, std::shared_ptr<std::vector<mappingValueType>> value)
       : _value(value), _colNum(colNum) {}
+  Matrix2D(int colNum)
+      : _value(std::make_shared<std::vector<mappingValueType>>(
+            std::vector<mappingValueType>(colNum * colNum, 0))),
+        _colNum(colNum) {}
   bool check() {
     if (_value->size() % _colNum != 0)
       return 0;
@@ -24,9 +28,11 @@ public:
   mappingValueType operator()(int i, int j) {
     return (*_value)[i * _colNum + j];
   }
+
   int getColNum() { return _colNum; }
   int getRowNum() { return _value->size() / _colNum; }
   std::shared_ptr<std::vector<mappingValueType>> getMatrix() { return _value; }
+  void setValue(int i, int j, int num) { (*_value)[i * _colNum + j] = num; }
   void print() {
     for (int i = 0; i < _colNum; i++) {
       for (int j = 0; j < _colNum; j++) {
@@ -52,6 +58,7 @@ public:
   Transform(int dimNum,
             std::shared_ptr<std::vector<mappingValueType>> transformMatrix)
       : Matrix2D(dimNum, transformMatrix) {}
+  Transform(int dimNum) : Matrix2D(dimNum) {}
   void addExtraSpatial() {
     _colNum++;
     int addElementNum = _colNum * _colNum - (_colNum - 1) * (_colNum - 1);
@@ -105,9 +112,9 @@ public:
     // check PE dim num
     if (coupledVec[0].size() != 1 || coupledVec[1].size() != 1)
       return false;
-    int PEX = *coupledVec[0].begin();
-    int PEY = *coupledVec[1].begin();
-    if (PEX == PEY)
+    int PEXindex = *coupledVec[0].begin();
+    int PEYindex = *coupledVec[1].begin();
+    if (PEXindex == PEYindex)
       return false;
     // check Time dim
     int count = 0;
@@ -124,9 +131,9 @@ public:
       return false;
     if (index != -1) {
       count = coupledVec[index].size();
-      if (operator()(index, PEX) == 1)
+      if (operator()(index, PEXindex) == 1)
         count--;
-      if (operator()(index, PEY) == 1)
+      if (operator()(index, PEYindex) == 1)
         count--;
       if (count != 1)
         return false;

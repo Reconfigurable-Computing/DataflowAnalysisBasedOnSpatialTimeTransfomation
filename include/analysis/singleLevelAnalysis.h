@@ -13,7 +13,7 @@
 class Analyzer {
 private:
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> &_coupledVarVec;
-  MAPPING::Transform &_T;
+  MAPPING::Transform _T;
   WORKLOAD::Tensor &_I;
   WORKLOAD::Tensor &_W;
   WORKLOAD::Tensor &_O;
@@ -21,7 +21,7 @@ private:
   MAPPING::Access _accessI;
   MAPPING::Access _accessW;
   MAPPING::Access _accessO;
-  std::shared_ptr<Result> _result;
+  std::shared_ptr<AnalyzerResult> _result;
   std::shared_ptr<std::vector<std::vector<int>>> _reuseVecI;
   std::shared_ptr<std::vector<std::vector<int>>> _reuseVecW;
   std::shared_ptr<std::vector<std::vector<int>>> _reuseVecO;
@@ -78,48 +78,26 @@ public:
         _accessI(MAPPING::constructAccessMatrix(I, coupledVarVec)),
         _accessW(MAPPING::constructAccessMatrix(W, coupledVarVec)),
         _accessO(MAPPING::constructAccessMatrix(O, coupledVarVec)),
-        _doubleBufferFlag(doubleBufferFlag) {
-    DEBUG::check(T.check(), DEBUG::TMATRIXERROR, T.to_string());
+        _doubleBufferFlag(doubleBufferFlag), _curBaseIndex(0) {}
+  void buildAnalyzer() {
     if (!_accessI.isScalar())
-      _reuseVecI = compReuseVec(T, _accessI);
+      _reuseVecI = compReuseVec(_T, _accessI);
     else
       _reuseVecI = scalarReuseVec(_coupledVarVec.size());
     if (!_accessW.isScalar())
-      _reuseVecW = compReuseVec(T, _accessW);
+      _reuseVecW = compReuseVec(_T, _accessW);
     else
       _reuseVecW = scalarReuseVec(_coupledVarVec.size());
     if (!_accessO.isScalar())
-      _reuseVecO = compReuseVec(T, _accessO);
+      _reuseVecO = compReuseVec(_T, _accessO);
     else
       _reuseVecO = scalarReuseVec(_coupledVarVec.size());
     // getTimeLine(coupledVarVec, T, I, W, O);
-
-    int colNum = _T.getColNum();
-    for (int i = 0; i < colNum; i++) {
-      if (_T(0, i) == 1)
-        PEX = _coupledVarVec[i];
-      if (_T(1, i) == 1)
-        PEY = _coupledVarVec[i];
-    }
-    std::pair<int, int> PEXRange = compTRange(0);
-    std::pair<int, int> PEYRange = compTRange(1);
-    DEBUG::check(_L.checkPEDimRange(PEXRange, 1), DEBUG::PEDIMOUTOFRANGE,
-                 PEX->to_string());
-    DEBUG::check(_L.checkPEDimRange(PEYRange, 0), DEBUG::PEDIMOUTOFRANGE,
-                 PEY->to_string());
-
-    DEBUG::check(!PEX->hasEdge(), DEBUG::EDGEPEDIMERROR, PEX->to_string());
-    DEBUG::check(!PEY->hasEdge(), DEBUG::EDGEPEDIMERROR, PEY->to_string());
     _reuseVecMap[ARCH::INPUT] = _reuseVecI;
     _reuseVecMap[ARCH::WEIGHT] = _reuseVecW;
     _reuseVecMap[ARCH::OUTPUT] = _reuseVecO;
-    DEBUG::check(_L.checkNetworkReuseValid(ARCH::INPUT, _reuseVecI),
-                 DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Input");
-    DEBUG::check(_L.checkNetworkReuseValid(ARCH::WEIGHT, _reuseVecW),
-                 DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Weight");
-    DEBUG::check(_L.checkNetworkReuseValid(ARCH::OUTPUT, _reuseVecO),
-                 DEBUG::REUSEVECNOTFITNETWORKARCHERROR, "Output");
   }
+  void changeT(MAPPING::Transform &T) { _T = T; }
   void setCurSubCoupledVarVec(std::vector<std::shared_ptr<WORKLOAD::Iterator>>
                                   curSubCoupledVarVec = {});
   void setBase(std::vector<Base> baseSet);
@@ -127,8 +105,37 @@ public:
   void oneAnalysis();
   void compRequiredDataSize();
   int compTotalBandWidth(ARCH::DATATYPE dataType);
-  std::shared_ptr<Result> getResult();
+  std::shared_ptr<AnalyzerResult> getResult();
   int getOccTimes();
-  void
-  setSubLevelResultVec(std::vector<std::shared_ptr<Result>> &subLevelResultVec);
+  void setSubLevelResultVec(
+      std::vector<std::shared_ptr<AnalyzerResult>> &subLevelResultVec);
+  bool constraintCheckAndBuildAnalyzer() {
+    int colNum = _T.getColNum();
+    for (int i = 0; i < colNum; i++) {
+      if (_T(0, i) == 1)
+        PEX = _coupledVarVec[i];
+      if (_T(1, i) == 1)
+        PEY = _coupledVarVec[i];
+    }
+    if (!_T.check())
+      return false;
+    std::pair<int, int> PEXRange = compTRange(0);
+    std::pair<int, int> PEYRange = compTRange(1);
+    if (!_L.checkPEDimRange(PEXRange, 1))
+      return false;
+    if (!_L.checkPEDimRange(PEYRange, 0))
+      return false;
+    if (PEX->hasEdge())
+      return false;
+    if (PEY->hasEdge())
+      return false;
+    buildAnalyzer();
+    if (!_L.checkNetworkReuseValid(ARCH::INPUT, _reuseVecI))
+      return false;
+    if (!_L.checkNetworkReuseValid(ARCH::WEIGHT, _reuseVecW))
+      return false;
+    if (!_L.checkNetworkReuseValid(ARCH::OUTPUT, _reuseVecO))
+      return false;
+    return true;
+  }
 };
