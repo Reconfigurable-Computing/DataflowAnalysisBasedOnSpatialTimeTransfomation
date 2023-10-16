@@ -1,4 +1,5 @@
 #include "include/searchEngine/transformSearchEngine.h"
+namespace DSE {
 void TransformSearchEngine::setMatrixAsOne(MAPPING::Transform &T,
                                            std::vector<int> &permute,
                                            int start) {
@@ -6,17 +7,6 @@ void TransformSearchEngine::setMatrixAsOne(MAPPING::Transform &T,
   for (int i = start; i < dimNum; i++) {
     T.setValue(i, permute[i], 1);
   }
-}
-void TransformSearchEngine::startAnalysis(std::vector<MAPPING::Transform> &Tvec,
-                                          MultLevelAnalyzer &multanalysis) {
-  for (auto &T : Tvec) {
-    multanalysis.changeT(0, _coupledVarVec, _spatialDimNum, T);
-    if (multanalysis.constraintCheck()) {
-      count++;
-      multanalysis.oneAnalysis();
-    }
-  }
-  std::cout << std::endl;
 }
 
 void TransformSearchEngine::generateTransformMatrix(
@@ -85,27 +75,32 @@ void TransformSearchEngine::generateTransformMatrix(
     }
   }
 }
-void TransformSearchEngine::generateAllTransformMatrix() {
 
+void TransformSearchEngine::generateAllTransformMatrix(
+    int level, MultLevelAnalyzer &multanalysis) {
   int dimNum = _coupledVarVec.size();
-  std::vector<MAPPING::Transform> Tvec;
-  MultLevelAnalyzer multanalysis(_I, _W, _O);
-  multanalysis.addLevel(_coupledVarVec, _L);
-  if (dimNum == 0) {
-    startAnalysis(Tvec, multanalysis);
-  } else {
-    std::vector<int> permute(dimNum, 0);
-    std::iota(permute.begin(), permute.end(), 0);
-    do {
-      for (int i = 0; i < dimNum; i++) {
-        std::cout << permute[i] << ' ';
-      }
-      std::cout << std::endl;
-      generateTransformMatrix(permute, Tvec);
-      startAnalysis(Tvec, multanalysis);
+  std::vector<MAPPING::Transform> TVecTmp;
+  assert(dimNum != 0);
 
-      Tvec.clear();
-    } while (std::next_permutation(permute.begin(), permute.end()));
-    std::cout << count << std::endl;
-  }
+  std::vector<int> permute(dimNum, 0);
+  std::iota(permute.begin(), permute.end(), 0);
+  do {
+    for (int i = 0; i < dimNum; i++) {
+      std::cout << permute[i] << ' ';
+    }
+    std::cout << std::endl;
+    generateTransformMatrix(permute, TVecTmp);
+    for (auto &T : TVecTmp) {
+      std::cout << std::endl;
+      std::cout << T.to_string();
+      std::cout << std::endl;
+      if (multanalysis.changeT(level, _coupledVarVec, _spatialDimNum, T,
+                               true)) {
+        _TVec.push_back(T);
+      }
+    }
+    TVecTmp.clear();
+  } while (std::next_permutation(permute.begin(), permute.end()));
+  std::cout << _TVec.size() << std::endl;
 }
+} // namespace DSE

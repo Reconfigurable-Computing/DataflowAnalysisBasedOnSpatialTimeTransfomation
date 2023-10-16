@@ -12,7 +12,7 @@
 
 class Analyzer {
 private:
-  std::vector<std::shared_ptr<WORKLOAD::Iterator>> &_coupledVarVec;
+  std::vector<std::shared_ptr<WORKLOAD::Iterator>> _coupledVarVec;
   MAPPING::Transform _T;
   WORKLOAD::Tensor &_I;
   WORKLOAD::Tensor &_W;
@@ -30,7 +30,7 @@ private:
   std::shared_ptr<WORKLOAD::Iterator> PEX;
   std::shared_ptr<WORKLOAD::Iterator> PEY;
   bool _doubleBufferFlag;
-
+  int _requiredDataSize[3];
   std::vector<Base> _baseSet;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> _curSubCoupledVarVec;
   std::set<std::shared_ptr<WORKLOAD::Iterator>> _curSubCoupledVarSet;
@@ -103,12 +103,13 @@ public:
   void setBase(std::vector<Base> baseSet);
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> &getCoupledVarVec();
   void oneAnalysis();
-  void compRequiredDataSize();
+  bool compAndCheckRequiredDataSize();
   int compTotalBandWidth(ARCH::DATATYPE dataType);
   std::shared_ptr<AnalyzerResult> getResult();
   int getOccTimes();
   void setSubLevelResultVec(
       std::vector<std::shared_ptr<AnalyzerResult>> &subLevelResultVec);
+  int *getRequiredDateSize() { return _requiredDataSize; }
   bool constraintCheckAndBuildAnalyzer() {
     int colNum = _T.getColNum();
     for (int i = 0; i < colNum; i++) {
@@ -137,5 +138,37 @@ public:
     if (!_L.checkNetworkReuseValid(ARCH::OUTPUT, _reuseVecO))
       return false;
     return true;
+  }
+  MAPPING::Transform getT() { return _T; }
+  std::string
+  reuseVecToString(std::shared_ptr<std::vector<std::vector<int>>> reuseVec) {
+    std::string ret;
+    int reuseVecNum = reuseVec->size();
+    if (reuseVecNum == 0)
+      return ret;
+    int dimNum = (*reuseVec)[0].size();
+    for (int i = 0; i < reuseVecNum; i++) {
+      for (int j = 0; j < dimNum; j++) {
+        ret += std::to_string((*reuseVec)[i][j]) + ' ';
+      }
+      ret += '\n';
+    }
+    return ret;
+  }
+  void outputConfig(std::ofstream &ofile) {
+    ofile << "Coupled Var:\n";
+    for (auto &var : _coupledVarVec) {
+      ofile << var->to_string() << std::endl;
+    }
+    ofile << "Transform Matrix:\n";
+    ofile << _T.to_string();
+    ofile << "Reuse Vector Input:\n";
+    ofile << reuseVecToString(_reuseVecI);
+    ofile << "Reuse Vector Weight:\n";
+    ofile << reuseVecToString(_reuseVecW);
+    ofile << "Reuse Vector Output:\n";
+    ofile << reuseVecToString(_reuseVecO);
+    ofile << "Arch Config:\n";
+    ofile << _L.to_string();
   }
 };

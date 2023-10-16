@@ -1,0 +1,672 @@
+ANSWER:0
+LEVEL0
+Coupled Var:
+var:	k_in	low	0	up	15
+var:	c	low	0	up	2
+var:	x	low	0	up	223
+Transform Matrix:
+1 0 0 
+0 1 0 
+0 1 1 
+Reuse Vector Input:
+1 0 0 
+Reuse Vector Weight:
+0 0 1 
+Reuse Vector Output:
+0 1 1 
+Arch Config:
+Array Size:3*16
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:1 0 0 
+Weight Network:0 0 1 
+OUTPUT Network:0 1 1 
+unique_output:28901376
+reuse_output:57802752
+total_output:86704128
+reuseRate_output:0.666667
+unique_input_0:5419008
+reuse_input_0:81285120
+total_input_0:86704128
+reuseRate_input_0:0.937500
+unique_input_1:387072
+reuse_input_1:86317056
+total_input_1:86704128
+reuseRate_input_1:0.995536
+bufferSize_output:7168
+bufferSize_input_0:1344
+bufferSize_input_1:96
+totalBandWidth_output:256
+totalBandWidth_input_0:768
+totalBandWidth_input_1:256
+maxInitDelay_input_0:1
+maxInitDelay_input_1:3
+maxInitTimes:1
+maxStableDelay_output:1
+maxStableDelay_input_0:1
+maxStableDelay_input_1:0
+maxStableCompDelay:1
+delay:230
+compCycleRate:0.973913
+PEUtilRate:0.973913
+LEVEL1
+Coupled Var:
+var:	tmpPEX	low	0	up	0
+var:	k_out	low	0	up	3
+var:	y	low	0	up	223
+var:	p	low	0	up	2
+var:	q	low	0	up	2
+Transform Matrix:
+1 0 0 0 0 
+0 1 0 0 0 
+0 0 0 1 0 
+0 0 1 0 0 
+0 0 0 0 1 
+Reuse Vector Input:
+1 0 0 0 0 
+0 0 -1 1 0 
+0 1 0 0 0 
+Reuse Vector Weight:
+0 0 0 1 0 
+1 0 0 0 0 
+Reuse Vector Output:
+0 0 1 0 0 
+1 0 0 0 0 
+0 0 0 0 1 
+Arch Config:
+Array Size:4*1
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:0 1 0 
+Weight Network:0 0 0 
+OUTPUT Network:0 0 1 
+unique_output:9633792
+reuse_output:19267584
+total_output:28901376
+reuseRate_output:0.666667
+unique_input_0:1354752
+reuse_input_0:4064256
+total_input_0:5419008
+reuseRate_input_0:0.750000
+unique_input_1:387072
+reuse_input_1:0
+total_input_1:387072
+reuseRate_input_1:0.000000
+bufferSize_output:6422528
+bufferSize_input_0:306456
+bufferSize_input_1:3456
+totalBandWidth_output:1024
+totalBandWidth_input_0:1024
+totalBandWidth_input_1:1024
+maxInitDelay_input_0:42
+maxInitDelay_input_1:3
+maxInitTimes:672
+maxStableDelay_output:0
+maxStableDelay_input_0:42
+maxStableDelay_input_1:3
+maxStableCompDelay:230
+delay:642432
+compCycleRate:0.721757
+PEUtilRate:0.721757
+ANSWER:1
+LEVEL0
+Coupled Var:
+var:	k_in	low	0	up	15
+var:	c	low	0	up	2
+var:	x	low	0	up	223
+Transform Matrix:
+1 0 0 
+0 1 0 
+0 1 1 
+Reuse Vector Input:
+1 0 0 
+Reuse Vector Weight:
+0 0 1 
+Reuse Vector Output:
+0 1 1 
+Arch Config:
+Array Size:3*16
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:1 0 0 
+Weight Network:0 0 1 
+OUTPUT Network:0 1 1 
+unique_output:28901376
+reuse_output:57802752
+total_output:86704128
+reuseRate_output:0.666667
+unique_input_0:5419008
+reuse_input_0:81285120
+total_input_0:86704128
+reuseRate_input_0:0.937500
+unique_input_1:387072
+reuse_input_1:86317056
+total_input_1:86704128
+reuseRate_input_1:0.995536
+bufferSize_output:7168
+bufferSize_input_0:1344
+bufferSize_input_1:96
+totalBandWidth_output:256
+totalBandWidth_input_0:768
+totalBandWidth_input_1:256
+maxInitDelay_input_0:1
+maxInitDelay_input_1:3
+maxInitTimes:1
+maxStableDelay_output:1
+maxStableDelay_input_0:1
+maxStableDelay_input_1:0
+maxStableCompDelay:1
+delay:230
+compCycleRate:0.973913
+PEUtilRate:0.973913
+LEVEL1
+Coupled Var:
+var:	tmpPEX	low	0	up	0
+var:	k_out	low	0	up	3
+var:	y	low	0	up	223
+var:	p	low	0	up	2
+var:	q	low	0	up	2
+Transform Matrix:
+1 0 0 0 0 
+0 1 0 0 0 
+0 1 0 1 0 
+0 0 1 0 0 
+0 0 0 0 1 
+Reuse Vector Input:
+0 1 1 0 0 
+0 1 0 1 0 
+1 0 0 0 0 
+Reuse Vector Weight:
+0 0 0 1 0 
+1 0 0 0 0 
+Reuse Vector Output:
+0 0 1 0 0 
+1 0 0 0 0 
+0 0 0 0 1 
+Arch Config:
+Array Size:4*1
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:0 1 0 
+Weight Network:0 0 0 
+OUTPUT Network:0 0 1 
+unique_output:9633792
+reuse_output:19267584
+total_output:28901376
+reuseRate_output:0.666667
+unique_input_0:1354752
+reuse_input_0:4064256
+total_input_0:5419008
+reuseRate_input_0:0.750000
+unique_input_1:387072
+reuse_input_1:0
+total_input_1:387072
+reuseRate_input_1:0.000000
+bufferSize_output:6422528
+bufferSize_input_0:306456
+bufferSize_input_1:3456
+totalBandWidth_output:1024
+totalBandWidth_input_0:1024
+totalBandWidth_input_1:1024
+maxInitDelay_input_0:42
+maxInitDelay_input_1:3
+maxInitTimes:672
+maxStableDelay_output:0
+maxStableDelay_input_0:42
+maxStableDelay_input_1:3
+maxStableCompDelay:230
+delay:1106112
+compCycleRate:0.419198
+PEUtilRate:0.419198
+ANSWER:2
+LEVEL0
+Coupled Var:
+var:	k_in	low	0	up	15
+var:	c	low	0	up	2
+var:	x	low	0	up	223
+Transform Matrix:
+1 0 0 
+0 1 0 
+0 1 1 
+Reuse Vector Input:
+1 0 0 
+Reuse Vector Weight:
+0 0 1 
+Reuse Vector Output:
+0 1 1 
+Arch Config:
+Array Size:3*16
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:1 0 0 
+Weight Network:0 0 1 
+OUTPUT Network:0 1 1 
+unique_output:28901376
+reuse_output:57802752
+total_output:86704128
+reuseRate_output:0.666667
+unique_input_0:5419008
+reuse_input_0:81285120
+total_input_0:86704128
+reuseRate_input_0:0.937500
+unique_input_1:387072
+reuse_input_1:86317056
+total_input_1:86704128
+reuseRate_input_1:0.995536
+bufferSize_output:7168
+bufferSize_input_0:1344
+bufferSize_input_1:96
+totalBandWidth_output:256
+totalBandWidth_input_0:768
+totalBandWidth_input_1:256
+maxInitDelay_input_0:1
+maxInitDelay_input_1:3
+maxInitTimes:1
+maxStableDelay_output:1
+maxStableDelay_input_0:1
+maxStableDelay_input_1:0
+maxStableCompDelay:1
+delay:230
+compCycleRate:0.973913
+PEUtilRate:0.973913
+LEVEL1
+Coupled Var:
+var:	tmpPEX	low	0	up	0
+var:	k_out	low	0	up	3
+var:	y	low	0	up	223
+var:	p	low	0	up	2
+var:	q	low	0	up	2
+Transform Matrix:
+1 0 0 0 0 
+0 1 0 0 0 
+0 0 0 1 0 
+0 0 0 0 1 
+0 0 1 0 0 
+Reuse Vector Input:
+1 0 0 0 0 
+0 1 0 0 0 
+0 0 -1 0 1 
+Reuse Vector Weight:
+1 0 0 0 0 
+0 0 0 0 1 
+Reuse Vector Output:
+0 0 1 0 0 
+0 0 0 1 0 
+1 0 0 0 0 
+Arch Config:
+Array Size:4*1
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:0 1 0 
+Weight Network:0 0 0 
+OUTPUT Network:0 0 1 
+unique_output:3211264
+reuse_output:25690112
+total_output:28901376
+reuseRate_output:0.888889
+unique_input_0:1354752
+reuse_input_0:4064256
+total_input_0:5419008
+reuseRate_input_0:0.750000
+unique_input_1:387072
+reuse_input_1:0
+total_input_1:387072
+reuseRate_input_1:0.000000
+bufferSize_output:6422528
+bufferSize_input_0:306456
+bufferSize_input_1:3456
+totalBandWidth_output:1024
+totalBandWidth_input_0:1024
+totalBandWidth_input_1:1024
+maxInitDelay_input_0:42
+maxInitDelay_input_1:3
+maxInitTimes:224
+maxStableDelay_output:0
+maxStableDelay_input_0:42
+maxStableDelay_input_1:3
+maxStableCompDelay:230
+delay:523264
+compCycleRate:0.886130
+PEUtilRate:0.886130
+ANSWER:3
+LEVEL0
+Coupled Var:
+var:	k_in	low	0	up	15
+var:	c	low	0	up	2
+var:	x	low	0	up	223
+Transform Matrix:
+1 0 0 
+0 1 0 
+0 1 1 
+Reuse Vector Input:
+1 0 0 
+Reuse Vector Weight:
+0 0 1 
+Reuse Vector Output:
+0 1 1 
+Arch Config:
+Array Size:3*16
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:1 0 0 
+Weight Network:0 0 1 
+OUTPUT Network:0 1 1 
+unique_output:28901376
+reuse_output:57802752
+total_output:86704128
+reuseRate_output:0.666667
+unique_input_0:5419008
+reuse_input_0:81285120
+total_input_0:86704128
+reuseRate_input_0:0.937500
+unique_input_1:387072
+reuse_input_1:86317056
+total_input_1:86704128
+reuseRate_input_1:0.995536
+bufferSize_output:7168
+bufferSize_input_0:1344
+bufferSize_input_1:96
+totalBandWidth_output:256
+totalBandWidth_input_0:768
+totalBandWidth_input_1:256
+maxInitDelay_input_0:1
+maxInitDelay_input_1:3
+maxInitTimes:1
+maxStableDelay_output:1
+maxStableDelay_input_0:1
+maxStableDelay_input_1:0
+maxStableCompDelay:1
+delay:230
+compCycleRate:0.973913
+PEUtilRate:0.973913
+LEVEL1
+Coupled Var:
+var:	tmpPEX	low	0	up	0
+var:	k_out	low	0	up	3
+var:	y	low	0	up	223
+var:	p	low	0	up	2
+var:	q	low	0	up	2
+Transform Matrix:
+1 0 0 0 0 
+0 1 0 0 0 
+0 1 0 1 0 
+0 0 0 0 1 
+0 0 1 0 0 
+Reuse Vector Input:
+0 1 1 0 0 
+1 0 0 0 0 
+0 1 0 0 1 
+Reuse Vector Weight:
+1 0 0 0 0 
+0 0 0 0 1 
+Reuse Vector Output:
+0 0 1 0 0 
+0 0 0 1 0 
+1 0 0 0 0 
+Arch Config:
+Array Size:4*1
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:0 1 0 
+Weight Network:0 0 0 
+OUTPUT Network:0 0 1 
+unique_output:3211264
+reuse_output:25690112
+total_output:28901376
+reuseRate_output:0.888889
+unique_input_0:1354752
+reuse_input_0:4064256
+total_input_0:5419008
+reuseRate_input_0:0.750000
+unique_input_1:387072
+reuse_input_1:0
+total_input_1:387072
+reuseRate_input_1:0.000000
+bufferSize_output:6422528
+bufferSize_input_0:306456
+bufferSize_input_1:3456
+totalBandWidth_output:1024
+totalBandWidth_input_0:1024
+totalBandWidth_input_1:1024
+maxInitDelay_input_0:42
+maxInitDelay_input_1:3
+maxInitTimes:224
+maxStableDelay_output:0
+maxStableDelay_input_0:42
+maxStableDelay_input_1:3
+maxStableCompDelay:230
+delay:986944
+compCycleRate:0.469814
+PEUtilRate:0.469814
+ANSWER:4
+LEVEL0
+Coupled Var:
+var:	k_in	low	0	up	15
+var:	c	low	0	up	2
+var:	x	low	0	up	223
+Transform Matrix:
+1 0 0 
+0 1 0 
+0 1 1 
+Reuse Vector Input:
+1 0 0 
+Reuse Vector Weight:
+0 0 1 
+Reuse Vector Output:
+0 1 1 
+Arch Config:
+Array Size:3*16
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:1 0 0 
+Weight Network:0 0 1 
+OUTPUT Network:0 1 1 
+unique_output:28901376
+reuse_output:57802752
+total_output:86704128
+reuseRate_output:0.666667
+unique_input_0:5419008
+reuse_input_0:81285120
+total_input_0:86704128
+reuseRate_input_0:0.937500
+unique_input_1:387072
+reuse_input_1:86317056
+total_input_1:86704128
+reuseRate_input_1:0.995536
+bufferSize_output:7168
+bufferSize_input_0:1344
+bufferSize_input_1:96
+totalBandWidth_output:256
+totalBandWidth_input_0:768
+totalBandWidth_input_1:256
+maxInitDelay_input_0:1
+maxInitDelay_input_1:3
+maxInitTimes:1
+maxStableDelay_output:1
+maxStableDelay_input_0:1
+maxStableDelay_input_1:0
+maxStableCompDelay:1
+delay:230
+compCycleRate:0.973913
+PEUtilRate:0.973913
+LEVEL1
+Coupled Var:
+var:	tmpPEX	low	0	up	0
+var:	k_out	low	0	up	3
+var:	y	low	0	up	223
+var:	p	low	0	up	2
+var:	q	low	0	up	2
+Transform Matrix:
+1 0 0 0 0 
+0 1 0 0 0 
+0 0 0 0 1 
+0 0 1 0 0 
+0 0 0 1 0 
+Reuse Vector Input:
+1 0 0 0 0 
+0 1 0 0 0 
+0 0 0 -1 1 
+Reuse Vector Weight:
+0 0 0 1 0 
+1 0 0 0 0 
+Reuse Vector Output:
+0 0 1 0 0 
+1 0 0 0 0 
+0 0 0 0 1 
+Arch Config:
+Array Size:4*1
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:0 1 0 
+Weight Network:0 0 0 
+OUTPUT Network:0 0 1 
+unique_output:9633792
+reuse_output:19267584
+total_output:28901376
+reuseRate_output:0.666667
+unique_input_0:1354752
+reuse_input_0:4064256
+total_input_0:5419008
+reuseRate_input_0:0.750000
+unique_input_1:387072
+reuse_input_1:0
+total_input_1:387072
+reuseRate_input_1:0.000000
+bufferSize_output:6422528
+bufferSize_input_0:306456
+bufferSize_input_1:3456
+totalBandWidth_output:1024
+totalBandWidth_input_0:1024
+totalBandWidth_input_1:1024
+maxInitDelay_input_0:42
+maxInitDelay_input_1:3
+maxInitTimes:672
+maxStableDelay_output:0
+maxStableDelay_input_0:42
+maxStableDelay_input_1:3
+maxStableCompDelay:230
+delay:642432
+compCycleRate:0.721757
+PEUtilRate:0.721757
+ANSWER:5
+LEVEL0
+Coupled Var:
+var:	k_in	low	0	up	15
+var:	c	low	0	up	2
+var:	x	low	0	up	223
+Transform Matrix:
+1 0 0 
+0 1 0 
+0 1 1 
+Reuse Vector Input:
+1 0 0 
+Reuse Vector Weight:
+0 0 1 
+Reuse Vector Output:
+0 1 1 
+Arch Config:
+Array Size:3*16
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:1 0 0 
+Weight Network:0 0 1 
+OUTPUT Network:0 1 1 
+unique_output:28901376
+reuse_output:57802752
+total_output:86704128
+reuseRate_output:0.666667
+unique_input_0:5419008
+reuse_input_0:81285120
+total_input_0:86704128
+reuseRate_input_0:0.937500
+unique_input_1:387072
+reuse_input_1:86317056
+total_input_1:86704128
+reuseRate_input_1:0.995536
+bufferSize_output:7168
+bufferSize_input_0:1344
+bufferSize_input_1:96
+totalBandWidth_output:256
+totalBandWidth_input_0:768
+totalBandWidth_input_1:256
+maxInitDelay_input_0:1
+maxInitDelay_input_1:3
+maxInitTimes:1
+maxStableDelay_output:1
+maxStableDelay_input_0:1
+maxStableDelay_input_1:0
+maxStableCompDelay:1
+delay:230
+compCycleRate:0.973913
+PEUtilRate:0.973913
+LEVEL1
+Coupled Var:
+var:	tmpPEX	low	0	up	0
+var:	k_out	low	0	up	3
+var:	y	low	0	up	223
+var:	p	low	0	up	2
+var:	q	low	0	up	2
+Transform Matrix:
+1 0 0 0 0 
+0 1 0 0 0 
+0 0 0 0 1 
+0 0 0 1 0 
+0 0 1 0 0 
+Reuse Vector Input:
+1 0 0 0 0 
+0 1 0 0 0 
+0 0 0 -1 1 
+Reuse Vector Weight:
+1 0 0 0 0 
+0 0 0 0 1 
+Reuse Vector Output:
+0 0 1 0 0 
+0 0 0 1 0 
+1 0 0 0 0 
+Arch Config:
+Array Size:4*1
+Input Buffer Size:128000000
+Weight Buffer Size:128000000
+OUTPUT Buffer Size:128000000
+Input Network:0 1 0 
+Weight Network:0 0 0 
+OUTPUT Network:0 0 1 
+unique_output:3211264
+reuse_output:25690112
+total_output:28901376
+reuseRate_output:0.888889
+unique_input_0:1354752
+reuse_input_0:4064256
+total_input_0:5419008
+reuseRate_input_0:0.750000
+unique_input_1:387072
+reuse_input_1:0
+total_input_1:387072
+reuseRate_input_1:0.000000
+bufferSize_output:6422528
+bufferSize_input_0:306456
+bufferSize_input_1:3456
+totalBandWidth_output:1024
+totalBandWidth_input_0:1024
+totalBandWidth_input_1:1024
+maxInitDelay_input_0:42
+maxInitDelay_input_1:3
+maxInitTimes:224
+maxStableDelay_output:0
+maxStableDelay_input_0:42
+maxStableDelay_input_1:3
+maxStableCompDelay:230
+delay:523264
+compCycleRate:0.886130
+PEUtilRate:0.886130

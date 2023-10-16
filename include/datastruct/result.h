@@ -55,6 +55,7 @@ struct AnalyzerResult {
     activePEMultTimeNum = 0;
     totalPEMultTimeNum = 0;
     PEUtilRate = 0;
+    subLevelResultVec.clear();
   }
   AnalyzerResult &operator+=(AnalyzerResult &other) {
     for (int i = 0; i < 3; i++) {
@@ -80,7 +81,19 @@ struct AnalyzerResult {
   }
 };
 
-class TransformSearchResult {
+struct TransformSearchResult {
   MAPPING::Transform _T;
   std::shared_ptr<AnalyzerResult> _result;
+  TransformSearchResult(MAPPING::Transform &T,
+                        std::shared_ptr<AnalyzerResult> &result)
+      : _result(result), _T(T) {}
+};
+
+struct MultiLevelTransformSearchResult {
+  std::vector<TransformSearchResult> _transformSearchResult;
+  MultiLevelTransformSearchResult(){};
+  void addResult(MAPPING::Transform T,
+                 std::shared_ptr<AnalyzerResult> &result) {
+    _transformSearchResult.emplace_back(T, result);
+  }
 };

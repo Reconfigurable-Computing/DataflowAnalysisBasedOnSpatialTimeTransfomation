@@ -13,9 +13,8 @@ private:
   WORKLOAD::Tensor &_W;
   WORKLOAD::Tensor &_O;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> _allCoupledVarVec;
-  std::vector<AnalyzerResult> _resultSet;
+  std::vector<std::shared_ptr<AnalyzerResult>> _resultSet;
   std::vector<bool> _validFlags;
-  void compRequiredDataSize(int level);
 
   void getSubLevelEdge(
       int level,
@@ -38,27 +37,36 @@ private:
   void compMultiLevelReusltDFS(std::shared_ptr<AnalyzerResult> node, int level);
   void extendT(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
                int spatialDimNum, MAPPING::Transform &T);
+  void extendCoupledVar(
+      std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
+      int spatialDimNum);
 
 public:
+  bool compAndCheckRequiredDataSize(int level);
+  bool checkRequiredDataSize();
   MultLevelAnalyzer(WORKLOAD::Tensor &I, WORKLOAD::Tensor &W,
                     WORKLOAD::Tensor &O)
-      : _I(I), _W(W), _O(O), _validFlags(false) {}
-  void addLevel(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
+      : _I(I), _W(W), _O(O) {}
+  void addLevel(std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec,
                 MAPPING::Transform &T, ARCH::Level &L, int spatialDimNum = 2,
                 bool doubleBufferFlag = true);
-  void addLevel(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
+  void addLevel(std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec,
                 ARCH::Level &L, int spatialDimNum = 2,
                 bool doubleBufferFlag = true);
-  void changeT(int level,
+  bool changeT(int level,
                std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
-               int spatialDimNum, MAPPING::Transform &T) {
+               int spatialDimNum, MAPPING::Transform &T, bool checkFlag) {
     assert(level < _analyzerSet.size());
-    extendT(coupledVarVec, spatialDimNum, T);
+    if (checkFlag)
+      extendT(coupledVarVec, spatialDimNum, T);
     _analyzerSet[level].changeT(T);
-    if (!_analyzerSet[level].constraintCheckAndBuildAnalyzer())
+    if (!_analyzerSet[level].constraintCheckAndBuildAnalyzer()) {
       _validFlags[level] = false;
-    else
+      return false;
+    } else {
       _validFlags[level] = true;
+      return true;
+    }
   }
   bool constraintCheck() {
     bool ret = true;
@@ -70,4 +78,18 @@ public:
   }
   void oneAnalysis();
   void outputCSV();
+  void outputTxt();
+  void outputTxt(std::ofstream &ofile);
+  void outputDataAccess(ARCH::DATATYPE dataType, std::ofstream &ofile,
+                        int level);
+  void constructSearchResult(
+      std::vector<MultiLevelTransformSearchResult> &mltsResult) {
+    mltsResult.emplace_back();
+    int levelNum = _analyzerSet.size();
+    int mltsResultSize = mltsResult.size();
+    for (int i = 0; i < levelNum; i++) {
+      mltsResult[mltsResultSize - 1].addResult(_analyzerSet[i].getT(),
+                                               _resultSet[i]);
+    }
+  }
 };

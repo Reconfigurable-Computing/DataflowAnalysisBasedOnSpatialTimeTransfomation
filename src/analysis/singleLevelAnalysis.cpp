@@ -26,6 +26,12 @@ void Analyzer::changeBase() {
 
 void Analyzer::oneAnalysis() {
   _result = std::make_shared<AnalyzerResult>(AnalyzerResult());
+  _result->requiredDataSize[ARCH::INPUT] =
+      _requiredDataSize[ARCH::INPUT] * (_doubleBufferFlag ? 2 : 1);
+  _result->requiredDataSize[ARCH::WEIGHT] =
+      _requiredDataSize[ARCH::WEIGHT] * (_doubleBufferFlag ? 2 : 1);
+  _result->requiredDataSize[ARCH::OUTPUT] =
+      _requiredDataSize[ARCH::OUTPUT] * (_doubleBufferFlag ? 2 : 1);
   std::vector<int> innerTimeVec;
   std::vector<int> outerTimeVec;
   constructInnerOuterTimeVec(innerTimeVec, outerTimeVec);
@@ -209,11 +215,11 @@ void Analyzer::compOneStateVolumn(int &uniqueVolumn, int &totalVolumn,
     if (_L.checkIfUnlockPEDim(1, dataType))
       PEY->unlock();
     if (networkType == ARCH::SYSTOLIC || networkType == ARCH::MULTICAST) {
-      uniqueVolumn += curTensor.getUniqueVolumn(_coupledVarVec) *
+      uniqueVolumn += compOneStateTimeSize(innerTimeVec) *
                       _baseSet[_curBaseIndex].baseData[dataType] *
                       _L.getActiveAccessPointNum(dataType, PEXRange, PEYRange);
     } else {
-      uniqueVolumn += curTensor.getUniqueVolumn(_coupledVarVec) *
+      uniqueVolumn += compOneStateTimeSize(innerTimeVec) *
                       _baseSet[_curBaseIndex].baseData[dataType] *
                       (PEYRange.second - PEYRange.first + 1) *
                       (PEXRange.second - PEXRange.first + 1);
@@ -355,10 +361,23 @@ int Analyzer::compOneStateTimeSize(std::vector<int> &timeVec) {
   return timeSize;
 }
 
-void Analyzer::compRequiredDataSize() {
-  _result->requiredDataSize[ARCH::OUTPUT] = _O.getVolumn();
-  _result->requiredDataSize[ARCH::INPUT] = _I.getVolumn();
-  _result->requiredDataSize[ARCH::WEIGHT] = _W.getVolumn();
+bool Analyzer::compAndCheckRequiredDataSize() {
+  _requiredDataSize[ARCH::OUTPUT] = _O.getVolumn();
+  _requiredDataSize[ARCH::INPUT] = _I.getVolumn();
+  _requiredDataSize[ARCH::WEIGHT] = _W.getVolumn();
+  if (!_L.checkBufferSize(_requiredDataSize[ARCH::INPUT] *
+                              (_doubleBufferFlag ? 2 : 1),
+                          ARCH::INPUT))
+    return false;
+  if (!_L.checkBufferSize(_requiredDataSize[ARCH::WEIGHT] *
+                              (_doubleBufferFlag ? 2 : 1),
+                          ARCH::WEIGHT))
+    return false;
+  if (!_L.checkBufferSize(_requiredDataSize[ARCH::OUTPUT] *
+                              (_doubleBufferFlag ? 2 : 1),
+                          ARCH::OUTPUT))
+    return false;
+  return true;
 }
 
 int Analyzer::compTotalBandWidth(ARCH::DATATYPE dataType) {

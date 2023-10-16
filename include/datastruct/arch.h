@@ -129,6 +129,20 @@ private:
   std::vector<std::vector<int>> _featureVec;
 
 public:
+  std::string to_string() {
+    std::string ret;
+    int reuseVecNum = _featureVec.size();
+    if (reuseVecNum == 0)
+      return ret;
+    int dimNum = _featureVec[0].size();
+    for (int i = 0; i < reuseVecNum; i++) {
+      for (int j = 0; j < dimNum; j++) {
+        ret += std::to_string(_featureVec[i][j]) + ' ';
+      }
+      ret += '\n';
+    }
+    return ret;
+  }
   NetworkGroup(DATATYPE dataType) : _dataType(dataType) {
     _networkSet = std::make_shared<std::vector<std::shared_ptr<Network>>>();
   }
@@ -292,26 +306,38 @@ public:
   bool checkNetworkReuseValid(
       std::shared_ptr<std::vector<std::vector<int>>> reuseVec) {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
-    if (networkType1 == UNICAST)
+    if (networkType1 == UNICAST) {
       return true;
-    if (_networkSet->size() == 1) {
+    } else if (_networkSet->size() == 1) // for MULTICAST SYSTOLIC
+    {
       bool ret = true;
-      for (auto &fvec : _featureVec) {
-        bool flag = false;
-        for (auto &rvec : *reuseVec) {
-          if (compareReuseVecAndFeatureVec(fvec, rvec)) {
-            flag = true;
-            break;
-          }
-        }
-        if (!flag) {
-          return false;
+      auto &fvec = _featureVec[0];
+      bool flag = false;
+      for (auto &rvec : *reuseVec) {
+        if (compareReuseVecAndFeatureVec(fvec, rvec)) {
+          return true;
         }
       }
-      return true;
+      return false;
+    } else if (networkType1 == STATIONARY) {
+      for (auto &rvec : *reuseVec) {
+        if (rvec[0] == 0 && rvec[1] == 0 && rvec[2] == 1) {
+          return true;
+        }
+      }
+      return false;
     } else {
       NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
-      return true;
+      bool flag0 = false, flag1 = false;
+      for (auto &rvec : *reuseVec) {
+        if (compareReuseVecAndFeatureVec(_featureVec[0], rvec)) {
+          flag0 = true;
+        }
+        if (compareReuseVecAndFeatureVec(_featureVec[1], rvec)) {
+          flag1 = true;
+        }
+      }
+      return flag0 && flag1;
     }
   }
   int getBufferBandWidth() {
@@ -329,14 +355,11 @@ public:
   }
   bool checkIfUnlockPEDim(int index) {
     assert(index == 0 || index == 1);
-    if (_networkSet->size() == 1) {
-      if (_featureVec[0][index] == 1 && _featureVec[0][1 - index] == 0)
-        return true;
-      else
-        return false;
-    } else if ((*_networkSet)[0]->getNetworkType() == UNICAST) {
+    if (_networkSet->size() == 1)
       return false;
-    } else {
+    else if ((*_networkSet)[0]->getNetworkType() == UNICAST)
+      return false;
+    else {
       if ((_featureVec[0][index] == 1 && _featureVec[0][1 - index] == 0) ||
           (_featureVec[1][index] == 1 && _featureVec[1][1 - index] == 0))
         return true;
@@ -360,6 +383,10 @@ public:
   Buffer(BufferType bufferType, DATATYPE dataType, int capacity, int wordBit)
       : _bufferType(bufferType), _dataType(dataType), _capacity(capacity),
         _wordBit(wordBit), _readBW(0), _writeBW(0), _readPort(0) {}
+  bool checkBufferSize(int requiredBufferSize) {
+    return requiredBufferSize <= _capacity;
+  }
+  int getCapacity() { return _capacity; }
 }; // end of Buffer
 class Level {
 private:
@@ -443,6 +470,24 @@ public:
   }
   bool checkIfUnlockPEDim(int index, DATATYPE dataType) {
     return (*_networkGroupSet)[dataType]->checkIfUnlockPEDim(index);
+  }
+  bool checkBufferSize(int requiredBufferSize, DATATYPE dataType) {
+    return (*_bufferSet)[dataType]->checkBufferSize(requiredBufferSize);
+  }
+  std::string to_string() {
+    std::string ret;
+    ret += "Array Size:" + std::to_string(_array->getRowNum()) + '*' +
+           std::to_string(_array->getColNum()) + '\n';
+    ret += "Input Buffer Size:" +
+           std::to_string((*_bufferSet)[INPUT]->getCapacity()) + '\n';
+    ret += "Weight Buffer Size:" +
+           std::to_string((*_bufferSet)[WEIGHT]->getCapacity()) + '\n';
+    ret += "OUTPUT Buffer Size:" +
+           std::to_string((*_bufferSet)[OUTPUT]->getCapacity()) + '\n';
+    ret += "Input Network:" + (*_networkGroupSet)[INPUT]->to_string();
+    ret += "Weight Network:" + (*_networkGroupSet)[WEIGHT]->to_string();
+    ret += "OUTPUT Network:" + (*_networkGroupSet)[OUTPUT]->to_string();
+    return ret;
   }
 }; // end of Level
 

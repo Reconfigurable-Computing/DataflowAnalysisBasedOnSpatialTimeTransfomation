@@ -158,6 +158,7 @@ public:
   Access(int colNum,
          std::shared_ptr<std::vector<mappingValueType>> accessMatrix)
       : Matrix2D(colNum, accessMatrix) {}
+  Access() : Matrix2D(0) {}
   bool isScalar() { return _value->size() == 0; }
 }; // end of Access
 MAPPING::Access constructAccessMatrix(
