@@ -1,4 +1,5 @@
 #include "include/searchEngine/transformSearchEngine.h"
+
 namespace DSE {
 void TransformSearchEngine::setMatrixAsOne(MAPPING::Transform &T,
                                            std::vector<int> &permute,
@@ -85,22 +86,42 @@ void TransformSearchEngine::generateAllTransformMatrix(
   std::vector<int> permute(dimNum, 0);
   std::iota(permute.begin(), permute.end(), 0);
   do {
-    for (int i = 0; i < dimNum; i++) {
-      std::cout << permute[i] << ' ';
-    }
-    std::cout << std::endl;
+    // for (int i = 0; i < dimNum; i++) {
+    //    std::cout << permute[i] << ' ';
+    //}
+    // std::cout << std::endl;
     generateTransformMatrix(permute, TVecTmp);
     for (auto &T : TVecTmp) {
-      std::cout << std::endl;
-      std::cout << T.to_string();
-      std::cout << std::endl;
+      // std::cout << std::endl;
+      // std::cout << T.to_string();
+      // std::cout << std::endl;
       if (multanalysis.changeT(level, _coupledVarVec, _spatialDimNum, T,
                                true)) {
         _TVec.push_back(T);
       }
     }
+    TransformSearchEngine::totalCount += TVecTmp.size();
     TVecTmp.clear();
   } while (std::next_permutation(permute.begin(), permute.end()));
-  std::cout << _TVec.size() << std::endl;
+}
+void Generator::startAnalysis(
+    MultLevelAnalyzer &multanalysis,
+    std::vector<std::shared_ptr<MultiLevelTransformSearchResult>> &mltsResult,
+    int count, std::ofstream &logFile, bool logFlag, bool firstFlag) {
+  int levelNum = _transformSearchEngineSet.size();
+  for (int i = 0; i < levelNum; i++) {
+    auto &transformSearchEngine = _transformSearchEngineSet[i];
+    transformSearchEngine.changeT(i, multanalysis);
+  }
+  // std::cout << multanalysis.constraintCheck() << std::endl;
+  multanalysis.oneAnalysis();
+  multanalysis.constructSearchResult(mltsResult);
+  if (logFlag) {
+    if (!firstFlag)
+      logFile << ",\n";
+    logFile << "\"ANSWER:" << std::to_string(count) << "\":{";
+    multanalysis.outputLog(logFile);
+    logFile << "}";
+  }
 }
 } // namespace DSE

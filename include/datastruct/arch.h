@@ -2,6 +2,7 @@
 
 #include "include/util/debug.h"
 #include <assert.h>
+#include <climits>
 #include <iostream>
 #include <map>
 #include <math.h>
@@ -14,19 +15,22 @@ typedef enum { UNICAST, MULTICAST, SYSTOLIC, STATIONARY } NETWORKTYPE;
 // declare the physical type of buffer
 typedef enum { SRAM, DRAM, REG } BufferType;
 // declare the data type of buffer
-typedef enum { INPUT = 0, WEIGHT = 1, OUTPUT = 2 } DATATYPE;
+typedef enum { INPUT = 0, WEIGHT = 1, OUTPUT = 2, TOTAL = 3 } DATATYPE;
 class Array {
 private:
   int _rowNum;  // the row num of array
   int _colNum;  // the col num of array
   int _wordBit; // the word bit of array if array is the last level(arithmetic)
+  int _spatialDimNum;
 
 public:
-  Array() : _rowNum(1), _colNum(1), _wordBit(16) {}
-  Array(int rowNum, int colNum, int wordBit)
-      : _rowNum(rowNum), _colNum(colNum), _wordBit(wordBit) {}
+  Array() : _rowNum(1), _colNum(1), _wordBit(16), _spatialDimNum(1) {}
+  Array(int rowNum, int colNum, int wordBit, int spatialDimNum)
+      : _rowNum(rowNum), _colNum(colNum), _wordBit(wordBit),
+        _spatialDimNum(spatialDimNum) {}
   int getRowNum() { return _rowNum; }
   int getColNum() { return _colNum; }
+  int getSpatialDimNum() { return _spatialDimNum; }
 }; // end of Array
 class NetworkItem {
 private:
@@ -127,23 +131,34 @@ private:
   std::shared_ptr<std::vector<std::shared_ptr<Network>>> _networkSet;
   DATATYPE _dataType;
   std::vector<std::vector<int>> _featureVec;
+  bool _peFlag;
+  int _bandWidth;
 
 public:
-  std::string to_string() {
+  void outputNetworkGroup(std::ofstream &logFile) {
     std::string ret;
     int reuseVecNum = _featureVec.size();
     if (reuseVecNum == 0)
-      return ret;
+      return;
+    logFile << "{";
     int dimNum = _featureVec[0].size();
     for (int i = 0; i < reuseVecNum; i++) {
+      if (i != 0)
+        logFile << ',';
+      logFile << "\"" << std::to_string(i) << "\":\"";
       for (int j = 0; j < dimNum; j++) {
-        ret += std::to_string(_featureVec[i][j]) + ' ';
+        logFile << std::to_string(_featureVec[i][j]) + ' ';
       }
-      ret += '\n';
+      logFile << "\"\n";
     }
-    return ret;
+    logFile << "}";
+    return;
   }
-  NetworkGroup(DATATYPE dataType) : _dataType(dataType) {
+  int getDelay(int base, int bitWidth) {
+    return std::ceil(double(base) * double(bitWidth) / double(_bandWidth));
+  }
+  NetworkGroup(DATATYPE dataType, bool peFlag, int bandWidth)
+      : _dataType(dataType), _peFlag(peFlag), _bandWidth(bandWidth) {
     _networkSet = std::make_shared<std::vector<std::shared_ptr<Network>>>();
   }
   NETWORKTYPE classifyNetworkType(std::vector<int> featureVec) {
@@ -152,10 +167,10 @@ public:
                  DEBUG::vec2string(featureVec));
     int featureX = featureVec[0], featureY = featureVec[1],
         featureT = featureVec[2];
-    DEBUG::check(std::abs(featureX) < 2 && std::abs(featureY) < 2 &&
-                         featureT == 0 ||
-                     featureT == 1,
-                 DEBUG::NETWORKFEATUREERROR, DEBUG::vec2string(featureVec));
+    // DEBUG::check(std::abs(featureX) < 2 && std::abs(featureY) < 2 && featureT
+    // == 0 || featureT == 1,
+    //    DEBUG::NETWORKFEATUREERROR,
+    //    DEBUG::vec2string(featureVec));
 
     if (!(featureX == 0 && featureY == 0) && featureT == 0)
       return MULTICAST;
@@ -167,8 +182,8 @@ public:
       return STATIONARY;
   }
   NetworkGroup(DATATYPE dataType, int rowNum, int colNum, int bandWidth,
-               std::vector<int> featureVec1)
-      : NetworkGroup(dataType) {
+               std::vector<int> featureVec1, bool peFlag)
+      : NetworkGroup(dataType, peFlag, bandWidth) {
     _featureVec.push_back(featureVec1);
     NETWORKTYPE networkType;
     networkType = classifyNetworkType(featureVec1);
@@ -177,14 +192,23 @@ public:
                                                        colNum, networkType, 0));
       _networkSet->push_back(std::make_shared<Network>(
           std::vector<int>{1, 0, 1}, rowNum, colNum, SYSTOLIC, bandWidth));
-    } else {
+    }
+    // else if (networkType == UNICAST)
+    //{
+    //    _networkSet->push_back(std::make_shared<Network>(featureVec1, rowNum,
+    //    colNum, networkType, 0));
+    //    _networkSet->push_back(std::make_shared<Network>(std::vector<int>{0,
+    //    0, 0}, rowNum, colNum, UNICAST, bandWidth));
+    //}
+    else {
       _networkSet->push_back(std::make_shared<Network>(
           featureVec1, rowNum, colNum, networkType, bandWidth));
     }
   }
   NetworkGroup(DATATYPE dataType, int rowNum, int colNum, int bandWidth,
-               std::vector<int> featureVec1, std::vector<int> featureVec2)
-      : NetworkGroup(dataType) {
+               std::vector<int> featureVec1, std::vector<int> featureVec2,
+               bool peFlag)
+      : NetworkGroup(dataType, peFlag, bandWidth) {
     NETWORKTYPE networkType1, networkType2;
     networkType1 = classifyNetworkType(featureVec1);
     networkType2 = classifyNetworkType(featureVec2);
@@ -269,13 +293,19 @@ public:
     if (_networkSet->size() == 1) {
       return (*_networkSet)[0]->getActiveAccessPointNum(PEXRange, PEYRange);
     } else {
-      if (checkIfStationary()) // for multicast-stationary or
-                               // systolic-stationary
-      {
-        return (*_networkSet)[0]->getActiveAccessPointNum(PEXRange, PEYRange);
-      } else {
+
+      if (checkIfStationary()) {
+        NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
+        if (networkType1 == STATIONARY)
+          return ((long long)PEYRange.second - PEYRange.first + 1) *
+                 ((long long)PEXRange.second - PEXRange.first + 1);
+        else // for multicast-stationary or systolic-stationary
+          return (*_networkSet)[0]->getActiveAccessPointNum(PEXRange, PEYRange);
+      } else if (checkIfUnicast())
+        return ((long long)PEYRange.second - PEYRange.first + 1) *
+               ((long long)PEXRange.second - PEXRange.first + 1);
+      else
         return 1;
-      }
     }
   }
   bool checkIfStationary() {
@@ -291,15 +321,41 @@ public:
       }
     }
   }
+  bool checkIfUnicast() {
+    if (_networkSet->size() == 1) {
+      return false;
+    } else {
+      NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
+      NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
+      if (networkType1 == UNICAST || networkType2 == UNICAST) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+  }
   int getInitOrOutDelay(int base, int bitWidth, std::pair<int, int> &PEXRange,
                         std::pair<int, int> &PEYRange);
-  int getStableDelay(int base, int bitWidth);
+  int getStableDelay(int base, int bitWidth, std::pair<int, int> &PEXRange,
+                     std::pair<int, int> &PEYRange);
   bool compareReuseVecAndFeatureVec(std::vector<int> &vec1,
                                     std::vector<int> &vec2) {
+    if (vec1[0] < 0) {
+      for (int j = 0; j < 3; j++) {
+        vec1[0] = -vec1[0];
+      }
+    }
     bool ret = true;
     for (int j = 0; j < 3; j++) {
       if (vec1[j] != vec2[j])
         ret = false;
+    }
+    int vec2Num = vec2.size();
+    if (vec1[2] == 0) {
+      for (int j = 3; j < vec2Num; j++) {
+        if (vec2[j] != 0)
+          ret = false;
+      }
     }
     return ret;
   }
@@ -340,19 +396,7 @@ public:
       return flag0 && flag1;
     }
   }
-  int getBufferBandWidth() {
-    if (_networkSet->size() == 1) {
-      return (*_networkSet)[0]->getBufferBandWidth();
-    } else {
-      NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
-      NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
-      if (networkType1 == STATIONARY || networkType1 == UNICAST) {
-        return (*_networkSet)[1]->getBufferBandWidth();
-      } else {
-        return (*_networkSet)[0]->getBufferBandWidth();
-      }
-    }
-  }
+  int getBufferBandWidth() { return _bandWidth; }
   bool checkIfUnlockPEDim(int index) {
     assert(index == 0 || index == 1);
     if (_networkSet->size() == 1)
@@ -373,20 +417,21 @@ class Buffer {
 private:
   BufferType _bufferType;
   DATATYPE _dataType;
-  int _capacity; // define how many words can hold by buffer
-  int _wordBit;  // the word bit of buffer
-  int _readBW;   // read bandwidth
-  int _writeBW;  // write bandwidth
-  int _readPort; // define how many network read this buffer
+  long long _capacity; // define how many bytes can hold by buffer
+  int _wordBit;        // the word bit of buffer
+  int _readBW;         // read bandwidth
+  int _writeBW;        // write bandwidth
+  int _readPort;       // define how many network read this buffer
 
 public:
-  Buffer(BufferType bufferType, DATATYPE dataType, int capacity, int wordBit)
+  Buffer(BufferType bufferType, DATATYPE dataType, long long capacity,
+         int wordBit)
       : _bufferType(bufferType), _dataType(dataType), _capacity(capacity),
         _wordBit(wordBit), _readBW(0), _writeBW(0), _readPort(0) {}
-  bool checkBufferSize(int requiredBufferSize) {
-    return requiredBufferSize <= _capacity;
+  bool checkBufferSize(long long requiredBufferSize) {
+    return requiredBufferSize * _wordBit / 8 <= _capacity;
   }
-  int getCapacity() { return _capacity; }
+  long long getCapacity() { return _capacity; }
 }; // end of Buffer
 class Level {
 private:
@@ -394,21 +439,34 @@ private:
   std::shared_ptr<std::map<DATATYPE, std::shared_ptr<NetworkGroup>>>
       _networkGroupSet;
   std::shared_ptr<Array> _array;
+  bool _inputWeightSharedBWFlag;
   int _bitWidth;
-  void appendArray(int rowNum, int colNum) {
-    _array = std::make_shared<Array>(rowNum, colNum, _bitWidth);
+  bool _peFlag;
+  void appendArray(int rowNum, int colNum, int spaitalNum) {
+    _array = std::make_shared<Array>(rowNum, colNum, _bitWidth, spaitalNum);
   }
 
 public:
-  Level(int rowNum, int colNum, int bitWidth) : _bitWidth(bitWidth) {
+  Level(int rowNum, int colNum, int bitWidth, bool peFlag = false,
+        int spatialDimNum = 2)
+      : _bitWidth(bitWidth) {
     _bufferSet =
         std::make_shared<std::map<DATATYPE, std::shared_ptr<Buffer>>>();
     _networkGroupSet =
         std::make_shared<std::map<DATATYPE, std::shared_ptr<NetworkGroup>>>();
     _array = std::make_shared<Array>();
-    appendArray(rowNum, colNum);
+    appendArray(rowNum, colNum, spatialDimNum);
+    _peFlag = peFlag;
+    _inputWeightSharedBWFlag = false;
   }
-  void appendBuffer(BufferType bufferType, DATATYPE dataType, int capacity) {
+  Level(int rowNum, int bitWidth, bool peFlag = false)
+      : Level(rowNum, 1, bitWidth, peFlag, 1) {}
+  Level(int bitWidth, bool peFlag = false) : Level(1, 1, bitWidth, peFlag, 0) {}
+  void setInputWeightSharedBW() { _inputWeightSharedBWFlag = true; }
+  bool ifInputWeightSharedBW() { return _inputWeightSharedBWFlag; }
+  int getSpatialDimNum() { return _array->getSpatialDimNum(); }
+  void appendBuffer(BufferType bufferType, DATATYPE dataType,
+                    long long capacity = LLONG_MAX) {
     (*_bufferSet)[dataType] =
         std::make_shared<Buffer>(bufferType, dataType, capacity, _bitWidth);
   }
@@ -417,7 +475,7 @@ public:
 
     (*_networkGroupSet)[dataType] = std::make_shared<NetworkGroup>(
         dataType, _array->getRowNum(), _array->getColNum(), bandWidth,
-        featureVec1);
+        featureVec1, _peFlag);
   }
   void appendNetworkGroup(DATATYPE dataType, int bandWidth,
                           std::vector<int> featureVec1,
@@ -425,13 +483,14 @@ public:
 
     (*_networkGroupSet)[dataType] = std::make_shared<NetworkGroup>(
         dataType, _array->getRowNum(), _array->getColNum(), bandWidth,
-        featureVec1, featureVec2);
+        featureVec1, featureVec2, _peFlag);
   }
 
   NETWORKTYPE getNetworkType(DATATYPE dataType) // to do mult network
   {
     return (*_networkGroupSet)[dataType]->getNetworkType();
   }
+  bool checkIfBufferTotal() { return _bufferSet->size() == 1; }
   int getActiveAccessPointNum(
       DATATYPE dataType, std::pair<int, int> &PEXRange,
       std::pair<int, int> &PEYRange) // to do mult network
@@ -445,13 +504,15 @@ public:
     return (*_networkGroupSet)[dataType]->getInitOrOutDelay(base, _bitWidth,
                                                             PEXRange, PEYRange);
   }
-  int getStableDelay(DATATYPE dataType, int base) {
-    return (*_networkGroupSet)[dataType]->getStableDelay(base, _bitWidth);
+  int getStableDelay(DATATYPE dataType, int base, std::pair<int, int> &PEXRange,
+                     std::pair<int, int> &PEYRange) {
+    return (*_networkGroupSet)[dataType]->getStableDelay(base, _bitWidth,
+                                                         PEXRange, PEYRange);
   }
   bool checkIfStationary(DATATYPE dataType) {
     return (*_networkGroupSet)[dataType]->checkIfStationary();
   }
-
+  bool isPE() { return _peFlag; }
   bool checkNetworkReuseValid(
       DATATYPE dataType,
       std::shared_ptr<std::vector<std::vector<int>>> reuseVec) {
@@ -459,35 +520,58 @@ public:
   }
   int getPENum() { return _array->getColNum() * _array->getRowNum(); }
   bool checkPEDimRange(std::pair<int, int> &PERange, int flag) {
-    if (flag == 0) {
+    if (flag == 0)
       return _array->getRowNum() > PERange.second && PERange.first >= 0;
-    } else {
+    else
       return _array->getColNum() > PERange.second && PERange.first >= 0;
-    }
   }
+
+  int getPEDimRange(int flag) {
+    if (flag == 0)
+      return _array->getRowNum();
+    else
+      return _array->getColNum();
+  }
+
   int getBufferBandWidth(DATATYPE dataType) {
     return (*_networkGroupSet)[dataType]->getBufferBandWidth();
   }
   bool checkIfUnlockPEDim(int index, DATATYPE dataType) {
     return (*_networkGroupSet)[dataType]->checkIfUnlockPEDim(index);
   }
-  bool checkBufferSize(int requiredBufferSize, DATATYPE dataType) {
+  bool checkBufferSize(long long requiredBufferSize, DATATYPE dataType) {
     return (*_bufferSet)[dataType]->checkBufferSize(requiredBufferSize);
   }
-  std::string to_string() {
+  void outputLevel(std::ofstream &logFile) {
+    logFile << "{";
     std::string ret;
-    ret += "Array Size:" + std::to_string(_array->getRowNum()) + '*' +
-           std::to_string(_array->getColNum()) + '\n';
-    ret += "Input Buffer Size:" +
-           std::to_string((*_bufferSet)[INPUT]->getCapacity()) + '\n';
-    ret += "Weight Buffer Size:" +
-           std::to_string((*_bufferSet)[WEIGHT]->getCapacity()) + '\n';
-    ret += "OUTPUT Buffer Size:" +
-           std::to_string((*_bufferSet)[OUTPUT]->getCapacity()) + '\n';
-    ret += "Input Network:" + (*_networkGroupSet)[INPUT]->to_string();
-    ret += "Weight Network:" + (*_networkGroupSet)[WEIGHT]->to_string();
-    ret += "OUTPUT Network:" + (*_networkGroupSet)[OUTPUT]->to_string();
-    return ret;
+    logFile << "\"Array Size\":\"" + std::to_string(_array->getRowNum()) + '*' +
+                   std::to_string(_array->getColNum()) + "\",\n";
+    if (checkIfBufferTotal()) {
+      logFile << "\"Total Buffer Size\":\"" +
+                     std::to_string((*_bufferSet)[TOTAL]->getCapacity()) +
+                     "\",\n";
+    } else {
+      logFile << "\"Input Buffer Size\":\"" +
+                     std::to_string((*_bufferSet)[INPUT]->getCapacity()) +
+                     "\",\n";
+      logFile << "\"Weight Buffer Size\":\"" +
+                     std::to_string((*_bufferSet)[WEIGHT]->getCapacity()) +
+                     "\",\n";
+      logFile << "\"OUTPUT Buffer Size\":\"" +
+                     std::to_string((*_bufferSet)[OUTPUT]->getCapacity()) +
+                     "\",\n";
+    }
+
+    logFile << "\"Input Network\":";
+    (*_networkGroupSet)[INPUT]->outputNetworkGroup(logFile);
+    logFile << ",\n";
+    logFile << "\"Weight Network\":";
+    (*_networkGroupSet)[WEIGHT]->outputNetworkGroup(logFile);
+    logFile << ",\n";
+    logFile << "\"OUTPUT Network\":";
+    (*_networkGroupSet)[OUTPUT]->outputNetworkGroup(logFile);
+    logFile << "}";
   }
 }; // end of Level
 

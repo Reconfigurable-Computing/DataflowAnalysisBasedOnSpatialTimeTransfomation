@@ -9,6 +9,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+namespace TIMELINE {
+
 struct TimeLine {
   std::vector<int> _time;
   std::vector<int> _varCur;
@@ -99,22 +101,22 @@ public:
     return true;
   }
 
-  void displayLine(std::shared_ptr<TimeLine> item, std::ofstream &ofile) {
-    ofile << "PEX " << item->PEX << ' ';
-    ofile << "PEY " << item->PEY << ' ';
-    ofile << "O";
+  void displayLine(std::shared_ptr<TimeLine> item, std::ofstream &logFile) {
+    logFile << "PEX " << item->PEX << ' ';
+    logFile << "PEY " << item->PEY << ' ';
+    logFile << "O";
     for (auto o : item->_curOutput) {
-      ofile << "[" + std::to_string(o) + "]";
+      logFile << "[" + std::to_string(o) + "]";
     }
-    ofile << " += I";
+    logFile << " += I";
     for (auto i : item->_curInput) {
-      ofile << "[" + std::to_string(i) + "]";
+      logFile << "[" + std::to_string(i) + "]";
     }
-    ofile << " * W";
+    logFile << " * W";
     for (auto w : item->_curWeight) {
-      ofile << "[" + std::to_string(w) + "]";
+      logFile << "[" + std::to_string(w) + "]";
     }
-    ofile << ' ';
+    logFile << ' ';
   }
   void displayLine(int pex, int pey, int dim1, int dim2, int dim3,
                    std::ofstream &ofile) {
@@ -191,3 +193,4 @@ public:
     return dim->getCur();
   }
 };
+} // namespace TIMELINE

@@ -47,9 +47,22 @@ public:
       for (int j = 0; j < _colNum; j++) {
         ret += std::to_string((*this)(i, j)) + ' ';
       }
-      ret += '\n';
+      ret += "    \n";
     }
     return ret;
+  }
+  void outputT(std::ofstream &logFile) {
+    logFile << "{";
+    for (int i = 0; i < _colNum; i++) {
+      if (i != 0)
+        logFile << ',';
+      logFile << "\"" << std::to_string(i) << "\":\"";
+      for (int j = 0; j < _colNum; j++) {
+        logFile << std::to_string((*this)(i, j)) + ' ';
+      }
+      logFile << "\"\n";
+    }
+    logFile << "}";
   }
 };
 class Transform : public Matrix2D {
@@ -59,6 +72,14 @@ public:
             std::shared_ptr<std::vector<mappingValueType>> transformMatrix)
       : Matrix2D(dimNum, transformMatrix) {}
   Transform(int dimNum) : Matrix2D(dimNum) {}
+
+  Transform &deepCopy(Transform &other) {
+    _colNum = other._colNum;
+    _value = std::make_shared<std::vector<mappingValueType>>(
+        std::vector<mappingValueType>(_colNum * _colNum, 0));
+    *_value = *other._value;
+    return *this;
+  }
   void addExtraSpatial() {
     _colNum++;
     int addElementNum = _colNum * _colNum - (_colNum - 1) * (_colNum - 1);

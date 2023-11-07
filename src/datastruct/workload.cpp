@@ -52,10 +52,9 @@ std::shared_ptr<Polynomial> operator+(std::shared_ptr<Polynomial> var1,
 void generateEdgeState(
     std::vector<std::vector<int>> &state,
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> &curSubCoupledVarVec) {
-
   for (auto var : curSubCoupledVarVec) {
     int len = state.size();
-    if (var->hasEdge()) {
+    if (var->hasEdge() && !var->islock()) {
       if (len == 0) {
         state.push_back({0});
         state.push_back({1});
@@ -81,4 +80,5 @@ void generateEdgeState(
     }
   }
 }
+
 } // namespace WORKLOAD

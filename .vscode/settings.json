@@ -53,7 +53,8 @@
         "arch": "cpp",
         "workload": "cpp",
         "list": "cpp",
-        "set": "cpp"
+        "set": "cpp",
+        "climits": "cpp"
     },
     "files.watcherExclude": {
         "**/target": true

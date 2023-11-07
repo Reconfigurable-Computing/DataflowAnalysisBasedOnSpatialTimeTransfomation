@@ -28,6 +28,7 @@ public:
       : _lowBound(lowBound), _upBound(upBound), _sym(sym), _lock(false),
         _hasEdge(false), _edgeFlag(false), _edgeLowBound(0), _edgeUpBound(0),
         _cur(lowBound), _isEdgeChild(false) {}
+  Iterator(int range, std::string sym) : Iterator(0, range - 1, sym) {}
 
   Iterator(int lowBound, int upBound, std::shared_ptr<Iterator> coupledIterator,
            std::string sym)
@@ -48,10 +49,10 @@ public:
   void setIsEdgeChild() { _isEdgeChild = true; }
   std::string to_string() {
     std::string ret;
-    ret += "var:\t" + _sym + "\tlow\t" + std::to_string(_lowBound) + "\tup\t" +
+    ret += "var: " + _sym + " low " + std::to_string(_lowBound) + " up " +
            std::to_string(_upBound);
-    if (_hasEdge) {
-      ret += "\tedgeLow\t" + std::to_string(_edgeLowBound) + "\tedgeUp\t" +
+    if (_isEdgeChild) {
+      ret += " edgeLow " + std::to_string(_edgeLowBound) + " edgeUp " +
              std::to_string(_edgeUpBound);
     }
     return ret;
@@ -166,6 +167,12 @@ public:
 
     _monomialSet->push_back(std::make_shared<Monomial>(i));
   }
+
+  Polynomial &operator=(Polynomial &other) {
+    for (auto &m : *(other._monomialSet))
+      _monomialSet->push_back(m);
+    return *this;
+  }
   Polynomial &operator+(std::shared_ptr<Polynomial> other) {
     for (auto item : *(other->_monomialSet)) {
       _monomialSet->push_back(item);
@@ -212,6 +219,12 @@ public:
     }
     return 0;
   }
+  std::vector<std::shared_ptr<WORKLOAD::Iterator>> getVarVecForVolumn() {
+    std::vector<std::shared_ptr<WORKLOAD::Iterator>> ret;
+    for (auto &m : *_monomialSet)
+      ret.push_back(m->getVar());
+    return ret;
+  }
 
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> getVarVec() {
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> ret;
@@ -229,6 +242,27 @@ public:
       ret += m->getCur();
     }
     return ret;
+  }
+  void splitIterator(std::shared_ptr<WORKLOAD::Iterator> oriIterator,
+                     std::shared_ptr<WORKLOAD::Iterator> outer,
+                     std::shared_ptr<WORKLOAD::Iterator> inner, int tileSize) {
+    bool flag = false;
+    std::shared_ptr<std::vector<std::shared_ptr<Monomial>>> _newMonomialSet =
+        std::make_shared<std::vector<std::shared_ptr<Monomial>>>();
+    for (auto &m : (*_monomialSet)) {
+      if (m->getVar() != oriIterator)
+        _newMonomialSet->push_back(m);
+      else
+        flag = true;
+    }
+    if (flag) {
+      std::shared_ptr<Monomial> innerM = std::make_shared<Monomial>(inner, 1);
+      std::shared_ptr<Monomial> outerM =
+          std::make_shared<Monomial>(outer, tileSize);
+      _newMonomialSet->push_back(innerM);
+      _newMonomialSet->push_back(outerM);
+      _monomialSet = _newMonomialSet;
+    }
   }
 }; // end of Polynomial
 std::shared_ptr<Polynomial> operator+(std::shared_ptr<Monomial> var1,
@@ -269,6 +303,19 @@ public:
     _dimensionTable =
         std::make_shared<std::vector<std::shared_ptr<Polynomial>>>();
   }
+  Tensor &operator=(const Tensor &arr) {
+    _dimensionTable =
+        std::make_shared<std::vector<std::shared_ptr<Polynomial>>>();
+    _sym = arr._sym;
+    _coupled = arr._coupled;
+    _varSet = arr._varSet;
+    for (auto &oriP : *(arr._dimensionTable)) {
+      std::shared_ptr<Polynomial> p = std::make_shared<Polynomial>();
+      *p = *oriP;
+      _dimensionTable->push_back(p);
+    }
+    return *this;
+  }
   Tensor(std::string sym) : _sym(sym) {
     _dimensionTable =
         std::make_shared<std::vector<std::shared_ptr<Polynomial>>>();
@@ -291,6 +338,14 @@ public:
     _dimensionTable->push_back(std::make_shared<Polynomial>(m));
     constructVarSet((*_dimensionTable)[_dimensionTable->size() - 1]);
     return *this;
+  }
+
+  void splitIterator(std::shared_ptr<WORKLOAD::Iterator> oriIterator,
+                     std::shared_ptr<WORKLOAD::Iterator> outer,
+                     std::shared_ptr<WORKLOAD::Iterator> inner, int tileSize) {
+    for (auto &dim : *_dimensionTable) {
+      dim->splitIterator(oriIterator, outer, inner, tileSize);
+    }
   }
 
   void constructVarSet(std::shared_ptr<Polynomial> dim) {
@@ -326,7 +381,7 @@ public:
       }
     }
   }
-
+  int getDimNum() { return _dimensionTable->size(); }
   int getCoupledDimNum() {
     int ret = 0;
     int dimNum = _dimensionTable->size();
@@ -380,26 +435,58 @@ public:
     }
     return ret;
   }
-
-  int getUniqueVolumn(
-      std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec) {
-    std::set<std::shared_ptr<WORKLOAD::Iterator>> coupledVarSet;
-    for (auto var : coupledVarVec) {
-      coupledVarSet.insert(var);
-    }
-    for (auto var : _varSet) {
-      if (coupledVarSet.count(var) == 0) {
-        var->lock();
-      }
-    }
-    int ret = compOneStateVolumn();
-    for (auto var : _varSet) {
-      if (coupledVarSet.count(var) == 0) {
-        var->unlock();
+  int getOneDimRange(std::shared_ptr<Polynomial> dim) {
+    std::vector<std::shared_ptr<WORKLOAD::Iterator>> varVec =
+        dim->getVarVecForVolumn();
+    std::vector<std::vector<int>> state;
+    generateEdgeState(state, varVec);
+    int stateNum = state.size();
+    int varNum = varVec.size();
+    int ret = 0;
+    if (stateNum == 0) {
+      return 1;
+    } else {
+      for (int i = 0; i < stateNum; i++) {
+        for (int j = 0; j < varNum; j++) {
+          if (state[i][j]) {
+            varVec[j]->setEdge();
+          }
+        }
+        auto range = dim->getRange();
+        ret += (range.second - range.first + 1);
+        for (int j = 0; j < varNum; j++) {
+          if (state[i][j]) {
+            varVec[j]->unsetEdge();
+          }
+        }
       }
     }
     return ret;
   }
+
+  std::vector<long long> getEveryDimRange() {
+    std::vector<long long> ret;
+    for (auto dim : *_dimensionTable)
+      ret.push_back(getOneDimRange(dim));
+    return ret;
+  }
+  int getCoupledDimIndex(std::shared_ptr<Iterator> curIterator) {
+    int dimNum = _dimensionTable->size();
+    for (int i = 0; i < dimNum; i++) {
+      auto dim = (*_dimensionTable)[i];
+      if (dim->lookupVar(curIterator)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  int getCoupledDimCoef(std::shared_ptr<Iterator> curIterator, int index) {
+    if (index == -1)
+      return 0;
+    return (*_dimensionTable)[index]->lookupVar(curIterator);
+  }
+
 }; // end of Tensor
 
 } // namespace WORKLOAD

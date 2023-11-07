@@ -17,6 +17,7 @@ private:
   int _TVecIndex;
 
 public:
+  static long long totalCount;
   TransformSearchEngine(
       std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
       ARCH::Level &L, int spatialDimNum, int preCoupledNum)
@@ -80,20 +81,10 @@ public:
       }
     }
   }
-  void startAnalysis(MultLevelAnalyzer &multanalysis,
-                     std::vector<MultiLevelTransformSearchResult> &mltsResult,
-                     int count, std::ofstream &ofile) {
-    int levelNum = _transformSearchEngineSet.size();
-    for (int i = 0; i < levelNum; i++) {
-      auto &transformSearchEngine = _transformSearchEngineSet[i];
-      transformSearchEngine.changeT(i, multanalysis);
-    }
-    std::cout << multanalysis.constraintCheck() << std::endl;
-    multanalysis.oneAnalysis();
-    multanalysis.constructSearchResult(mltsResult);
-    ofile << "ANSWER:" << std::to_string(count) << "\n";
-    multanalysis.outputTxt(ofile);
-  }
+  void startAnalysis(
+      MultLevelAnalyzer &multanalysis,
+      std::vector<std::shared_ptr<MultiLevelTransformSearchResult>> &mltsResult,
+      int count, std::ofstream &logFile, bool logFlag, bool firstFlag);
   bool isValid() {
     for (auto &transformSearchEngine : _transformSearchEngineSet) {
       if (transformSearchEngine.isEmpty())
@@ -109,7 +100,7 @@ class MultiLevelTransformSearchEngine {
   WORKLOAD::Tensor &_O;
   std::vector<TransformSearchEngine> _transformSearchEngineSet;
   int _countCoupledVar;
-  std::vector<MultiLevelTransformSearchResult> _mltsResult;
+  std::vector<std::shared_ptr<MultiLevelTransformSearchResult>> _mltsResult;
 
 public:
   MultiLevelTransformSearchEngine(WORKLOAD::Tensor &I, WORKLOAD::Tensor &W,
@@ -117,35 +108,82 @@ public:
       : _I(I), _W(W), _O(O), _countCoupledVar(0) {}
 
   void addLevel(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
-                ARCH::Level &L, int spatialDimNum) {
+                ARCH::Level &L) {
+    int spatialDimNum = L.getSpatialDimNum();
     _transformSearchEngineSet.emplace_back(coupledVarVec, L, spatialDimNum,
                                            _countCoupledVar);
     _countCoupledVar += coupledVarVec.size();
   }
 
-  void oneSearch() {
+  void oneSearch(std::ofstream &logFile, bool logFlag) {
+
     MultLevelAnalyzer multanalysis(_I, _W, _O);
     int levelNum = _transformSearchEngineSet.size();
 
     for (int i = 0; i < levelNum; i++) {
       auto &transformSearchEngine = _transformSearchEngineSet[i];
       transformSearchEngine.addLevel(multanalysis);
-      transformSearchEngine.generateAllTransformMatrix(i, multanalysis);
     }
     if (!multanalysis.checkRequiredDataSize())
       return;
+    for (int i = 0; i < levelNum; i++) {
+      auto &transformSearchEngine = _transformSearchEngineSet[i];
+      transformSearchEngine.generateAllTransformMatrix(i, multanalysis);
+    }
+
     Generator generator(_transformSearchEngineSet);
     if (!generator.isValid())
       return;
-    std::ofstream ofile;
-    ofile.open("mlsrlog.txt", std::ios::out);
+
     int count = 0;
+    int firstFlag = true;
     while (!generator.isEnd()) {
-      generator.startAnalysis(multanalysis, _mltsResult, count++, ofile);
+      generator.startAnalysis(multanalysis, _mltsResult, count++, logFile,
+                              logFlag, firstFlag);
       generator.getNext();
+      firstFlag = false;
     }
-    generator.startAnalysis(multanalysis, _mltsResult, count++, ofile);
-    ofile.close();
+    generator.startAnalysis(multanalysis, _mltsResult, count++, logFile,
+                            logFlag, firstFlag);
+  }
+
+  static bool
+  cmpResultByTotalCycle(std::shared_ptr<MultiLevelTransformSearchResult> &r1,
+                        std::shared_ptr<MultiLevelTransformSearchResult> &r2) {
+    int levelSize = r1->_transformSearchResult.size();
+    if (r1->_transformSearchResult[levelSize - 1]->_result->delay <
+        r2->_transformSearchResult[levelSize - 1]->_result->delay)
+      return true;
+    else
+      return false;
+  }
+  void sortResult(int flag = 0) {
+    if (flag == 0) {
+      std::sort(_mltsResult.begin(), _mltsResult.end(), cmpResultByTotalCycle);
+    }
+  }
+  void outputTopResult(std::ofstream &ofile, int num = 10) {
+    sortResult();
+    num = std::min(num, int(_mltsResult.size()));
+    ofile << "{\n";
+    for (int i = 0; i < num; i++) {
+      if (i != 0)
+        ofile << ",\n";
+      ofile << "\"ANSWER:" << std::to_string(i) << "\":{";
+      _mltsResult[i]->outputLog(ofile);
+      ofile << "}";
+    }
+    ofile << "}";
+  }
+  void constructGroupSearchResult(
+      std::vector<std::shared_ptr<GroupSearchResult>> &groupSearchResult,
+      std::vector<std::vector<std::shared_ptr<WORKLOAD::Iterator>>>
+          &coupledVarVecVec) {
+    int resultNum = _mltsResult.size();
+    for (int i = 0; i < resultNum; i++) {
+      groupSearchResult.push_back(std::make_shared<GroupSearchResult>(
+          coupledVarVecVec, _mltsResult[i]));
+    }
   }
 };
 

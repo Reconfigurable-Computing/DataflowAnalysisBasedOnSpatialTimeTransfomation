@@ -7,16 +7,22 @@
 #include "include/util/debug.h"
 #include "include/util/eigenUtil.h"
 #include "include/util/timeline.h"
+#include <algorithm>
+#include <numeric>
 #include <set>
 #include <vector>
-
 class Analyzer {
 private:
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> _coupledVarVec;
+  std::vector<std::shared_ptr<WORKLOAD::Iterator>> _oriCoupledVarVec;
   MAPPING::Transform _T;
-  WORKLOAD::Tensor &_I;
-  WORKLOAD::Tensor &_W;
-  WORKLOAD::Tensor &_O;
+  WORKLOAD::Tensor _I;
+  WORKLOAD::Tensor _W;
+  WORKLOAD::Tensor _O;
+  WORKLOAD::Tensor _oriI;
+  WORKLOAD::Tensor _oriW;
+  WORKLOAD::Tensor _oriO;
+  bool _edgePEFlag;
   ARCH::Level &_L;
   MAPPING::Access _accessI;
   MAPPING::Access _accessW;
@@ -29,14 +35,16 @@ private:
       _reuseVecMap;
   std::shared_ptr<WORKLOAD::Iterator> PEX;
   std::shared_ptr<WORKLOAD::Iterator> PEY;
+  std::shared_ptr<WORKLOAD::Iterator> INNERTIME;
   bool _doubleBufferFlag;
-  int _requiredDataSize[3];
+  long long _requiredDataSize[3];
+  std::vector<std::vector<long long>> _tensorDimRange;
   std::vector<Base> _baseSet;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> _curSubCoupledVarVec;
   std::set<std::shared_ptr<WORKLOAD::Iterator>> _curSubCoupledVarSet;
   int _curBaseIndex;
 
-  std::pair<int, int> compTRange(int row);
+  std::pair<long long, long long> compTRange(int row);
   bool checkValidInnerDim(int varIndex, ARCH::DATATYPE dataType);
   void constructSingleDataTypeTimeSet(int flag,
                                       std::set<int> &singleDataTypeSet,
@@ -49,12 +57,14 @@ private:
   void compOneDataVolumn(ARCH::DATATYPE dataType, MAPPING::Access &access,
                          std::vector<int> &innerTimeVec, int outerTimeSize,
                          WORKLOAD::Tensor &curTensor);
+  int compStableVolumn(ARCH::DATATYPE dataType, int innerCoupledDimIndex,
+                       int coef);
   int compOneStateStableDelay();
-  int compOneStateInitDelay(std::pair<int, int> &PEXRange,
-                            std::pair<int, int> &PEYRange);
-  void compOneStateDelay(std::vector<int> &innerTimeVec, int &delay,
-                         int &compCycle, int &initDelay,
-                         int &activePEMultTimeNum);
+  long long compOneStateInitDelay(std::pair<int, int> &PEXRange,
+                                  std::pair<int, int> &PEYRange);
+  void compOneStateDelay(std::vector<int> &innerTimeVec, long long &delay,
+                         long long &compCycle, long long &initDelay,
+                         long long &activePEMultTimeNum);
   void accessAnalysis(std::vector<int> &innerTimeVec,
                       std::vector<int> &outerTimeVec);
   void delayAnalysis(std::vector<int> &innerTimeVec,
@@ -62,7 +72,7 @@ private:
   void setEdge(std::shared_ptr<WORKLOAD::Iterator> curI);
   void unsetEdge(std::shared_ptr<WORKLOAD::Iterator> curI);
   void changeBase();
-  void compOneStateVolumn(int &uniqueVolumn, int &totalVolumn,
+  void compOneStateVolumn(long long &uniqueVolumn, long long &totalVolumn,
                           std::vector<int> &innerTimeVec,
                           ARCH::DATATYPE dataType, WORKLOAD::Tensor &curTensor);
   void
@@ -74,11 +84,13 @@ public:
   Analyzer(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
            MAPPING::Transform &T, WORKLOAD::Tensor &I, WORKLOAD::Tensor &W,
            WORKLOAD::Tensor &O, ARCH::Level &L, bool doubleBufferFlag)
-      : _coupledVarVec(coupledVarVec), _T(T), _I(I), _W(W), _O(O), _L(L),
-        _accessI(MAPPING::constructAccessMatrix(I, coupledVarVec)),
-        _accessW(MAPPING::constructAccessMatrix(W, coupledVarVec)),
-        _accessO(MAPPING::constructAccessMatrix(O, coupledVarVec)),
-        _doubleBufferFlag(doubleBufferFlag), _curBaseIndex(0) {}
+      : _oriCoupledVarVec(coupledVarVec), _T(T), _oriI(I), _oriW(W), _oriO(O),
+        _L(L), _doubleBufferFlag(doubleBufferFlag), _curBaseIndex(0),
+        _edgePEFlag(false) {
+    for (int i = 0; i < 3; i++)
+      _requiredDataSize[0] = 0;
+    reset();
+  }
   void buildAnalyzer() {
     if (!_accessI.isScalar())
       _reuseVecI = compReuseVec(_T, _accessI);
@@ -92,12 +104,12 @@ public:
       _reuseVecO = compReuseVec(_T, _accessO);
     else
       _reuseVecO = scalarReuseVec(_coupledVarVec.size());
-    // getTimeLine(coupledVarVec, T, I, W, O);
+
     _reuseVecMap[ARCH::INPUT] = _reuseVecI;
     _reuseVecMap[ARCH::WEIGHT] = _reuseVecW;
     _reuseVecMap[ARCH::OUTPUT] = _reuseVecO;
   }
-  void changeT(MAPPING::Transform &T) { _T = T; }
+  void changeT(MAPPING::Transform &T) { _T.deepCopy(T); }
   void setCurSubCoupledVarVec(std::vector<std::shared_ptr<WORKLOAD::Iterator>>
                                   curSubCoupledVarVec = {});
   void setBase(std::vector<Base> baseSet);
@@ -109,8 +121,70 @@ public:
   int getOccTimes();
   void setSubLevelResultVec(
       std::vector<std::shared_ptr<AnalyzerResult>> &subLevelResultVec);
-  int *getRequiredDateSize() { return _requiredDataSize; }
+  std::vector<std::vector<long long>> getTensorDimRange() {
+    return _tensorDimRange;
+  }
+
+  bool checkAndSplitIterator(std::shared_ptr<WORKLOAD::Iterator> PEIterator,
+                             int dim) {
+    std::pair<int, int> PERange = compTRange(dim);
+    if (!_L.checkPEDimRange(PERange, 1 - dim)) {
+      if (PEIterator->isEdge())
+        return false;
+      _edgePEFlag = true;
+      int lowerBound = PEIterator->getLowBound();
+      int upperBound = PEIterator->getUpBound();
+      int iteratorRange = upperBound - lowerBound + 1;
+      int peRange = _L.getPEDimRange(1 - dim);
+      int quotient = iteratorRange / peRange;
+      int res = iteratorRange - peRange * quotient;
+      std::shared_ptr<WORKLOAD::Iterator> outer;
+      std::shared_ptr<WORKLOAD::Iterator> inner;
+      if (res == 0) {
+        outer = std::make_shared<WORKLOAD::Iterator>(
+            WORKLOAD::Iterator(0, quotient - 1, PEIterator->getSym() + "_out"));
+        inner = std::make_shared<WORKLOAD::Iterator>(
+            WORKLOAD::Iterator(0, peRange - 1, PEIterator->getSym() + "_in"));
+      } else {
+        inner = std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(
+            0, peRange - 1, 0, res - 1, PEIterator->getSym() + "_in"));
+        outer = std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(
+            0, quotient - 1, inner, PEIterator->getSym() + "_out"));
+      }
+      if (dim == 0)
+        PEX = inner;
+      else
+        PEY = inner;
+      int coupledVarNum = _coupledVarVec.size();
+      for (int i = 0; i < coupledVarNum; i++) {
+        if (_coupledVarVec[i] == PEIterator) {
+          _coupledVarVec[i] = inner;
+          break;
+        }
+      }
+      _coupledVarVec.push_back(outer);
+      _T.addExtraTemporal();
+      // change Tensor
+      _I.splitIterator(PEIterator, outer, inner, peRange);
+      _W.splitIterator(PEIterator, outer, inner, peRange);
+      _O.splitIterator(PEIterator, outer, inner, peRange);
+      return true;
+    } else {
+      return true;
+    }
+  }
+
+  void reset() {
+    _edgePEFlag = false;
+    _coupledVarVec = _oriCoupledVarVec;
+    _O = _oriO;
+    _I = _oriI;
+    _W = _oriW;
+  }
+
   bool constraintCheckAndBuildAnalyzer() {
+    if (_edgePEFlag)
+      reset();
     int colNum = _T.getColNum();
     for (int i = 0; i < colNum; i++) {
       if (_T(0, i) == 1)
@@ -118,18 +192,29 @@ public:
       if (_T(1, i) == 1)
         PEY = _coupledVarVec[i];
     }
+    for (int i = 0; i < colNum; i++) {
+      if (_T(2, i) == 1 && _T(0, i) != 1 && _T(1, i) != 1)
+        INNERTIME = _coupledVarVec[i];
+    }
     if (!_T.check())
-      return false;
-    std::pair<int, int> PEXRange = compTRange(0);
-    std::pair<int, int> PEYRange = compTRange(1);
-    if (!_L.checkPEDimRange(PEXRange, 1))
-      return false;
-    if (!_L.checkPEDimRange(PEYRange, 0))
       return false;
     if (PEX->hasEdge())
       return false;
     if (PEY->hasEdge())
       return false;
+    std::pair<int, int> PEXRange = compTRange(0);
+    std::pair<int, int> PEYRange = compTRange(1);
+    // if (!_L.checkPEDimRange(PEXRange, 1))
+    //    return false;
+    // if (!_L.checkPEDimRange(PEYRange, 0))
+    //    return false;
+    if (!checkAndSplitIterator(PEX, 0))
+      return false;
+    if (!checkAndSplitIterator(PEY, 1))
+      return false;
+    _accessI = MAPPING::constructAccessMatrix(_I, _coupledVarVec);
+    _accessW = MAPPING::constructAccessMatrix(_W, _coupledVarVec);
+    _accessO = MAPPING::constructAccessMatrix(_O, _coupledVarVec);
     buildAnalyzer();
     if (!_L.checkNetworkReuseValid(ARCH::INPUT, _reuseVecI))
       return false;
@@ -139,36 +224,55 @@ public:
       return false;
     return true;
   }
+  void getTimeLine() { TIMELINE::getTimeLine(_coupledVarVec, _T, _I, _W, _O); }
   MAPPING::Transform getT() { return _T; }
-  std::string
-  reuseVecToString(std::shared_ptr<std::vector<std::vector<int>>> reuseVec) {
+  void outputReuseVec(std::shared_ptr<std::vector<std::vector<int>>> reuseVec,
+                      std::ofstream &logFile) {
     std::string ret;
+    logFile << "{";
     int reuseVecNum = reuseVec->size();
     if (reuseVecNum == 0)
-      return ret;
+      return;
     int dimNum = (*reuseVec)[0].size();
     for (int i = 0; i < reuseVecNum; i++) {
+      if (i != 0)
+        logFile << ',';
+      logFile << "\"" << std::to_string(i) << "\":\"";
       for (int j = 0; j < dimNum; j++) {
-        ret += std::to_string((*reuseVec)[i][j]) + ' ';
+        logFile << std::to_string((*reuseVec)[i][j]) + ' ';
       }
-      ret += '\n';
+      logFile << "\"\n";
     }
-    return ret;
+    logFile << "}";
+    return;
   }
-  void outputConfig(std::ofstream &ofile) {
-    ofile << "Coupled Var:\n";
+  void outputConfig(std::ofstream &logFile) {
+    logFile << "\"Coupled Var\":\n";
+    logFile << "{";
+    int count = 0;
     for (auto &var : _coupledVarVec) {
-      ofile << var->to_string() << std::endl;
+      if (count != 0)
+        logFile << ',';
+      logFile << "\"" << std::to_string(count) << "\":\"";
+      count++;
+      logFile << var->to_string();
+      logFile << "\"\n";
     }
-    ofile << "Transform Matrix:\n";
-    ofile << _T.to_string();
-    ofile << "Reuse Vector Input:\n";
-    ofile << reuseVecToString(_reuseVecI);
-    ofile << "Reuse Vector Weight:\n";
-    ofile << reuseVecToString(_reuseVecW);
-    ofile << "Reuse Vector Output:\n";
-    ofile << reuseVecToString(_reuseVecO);
-    ofile << "Arch Config:\n";
-    ofile << _L.to_string();
+    logFile << "},";
+    logFile << "\"Transform Matrix:\":\n";
+    _T.outputT(logFile);
+    logFile << ",";
+    logFile << "\"Reuse Vector Input:\":";
+    outputReuseVec(_reuseVecI, logFile);
+    logFile << "\n,";
+    logFile << "\"Reuse Vector Weight:\":";
+    outputReuseVec(_reuseVecW, logFile);
+    logFile << "\n,";
+    logFile << "\"Reuse Vector Output:\":";
+    outputReuseVec(_reuseVecO, logFile);
+    logFile << "\n,";
+    logFile << "\"Arch Config:\":\n";
+    _L.outputLevel(logFile);
+    logFile << ",";
   }
 };

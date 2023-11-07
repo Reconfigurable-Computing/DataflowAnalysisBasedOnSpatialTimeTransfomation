@@ -3,15 +3,22 @@
 #include <memory>
 #include <vector>
 struct Base {
-  int baseData[3];
-  int baseCompCycle;
+  std::vector<std::vector<long long>> baseData;
+  long long baseCompCycle;
   Base() {
-    for (int i = 0; i < 3; i++) {
-      baseData[i] = 1;
-    }
+    baseData = std::vector<std::vector<long long>>(3);
     baseCompCycle = 1;
   }
-  Base(int newBaseCompCycle, int newBaseData[3]) {
+  Base(int inputDimNum, int weightDimNum, int outputDimNum) {
+    baseData = std::vector<std::vector<long long>>(3);
+    baseData[0] = std::vector<long long>(inputDimNum, 1);
+    baseData[1] = std::vector<long long>(weightDimNum, 1);
+    baseData[2] = std::vector<long long>(outputDimNum, 1);
+    baseCompCycle = 1;
+  }
+  Base(long long newBaseCompCycle,
+       std::vector<std::vector<long long>> newBaseData) {
+    baseData = std::vector<std::vector<long long>>(3);
     baseCompCycle = newBaseCompCycle;
     for (int i = 0; i < 3; i++) {
       baseData[i] = newBaseData[i];
@@ -19,21 +26,21 @@ struct Base {
   }
 };
 struct AnalyzerResult {
-  int uniqueVolumn[3]; // input weight output
-  int totalVolumn[3];
-  int reuseVolumn[3];
-  int requiredDataSize[3];
-  int initDelay[3];
-  int initTimes;
-  int stableDelay[4];
-  int delay;
-  int compCycle;
-  int occTimes;
+  long long uniqueVolumn[3]; // input weight output
+  long long totalVolumn[3];
+  long long reuseVolumn[3];
+  long long requiredDataSize[3];
+  long long initDelay[3];
+  long long initTimes;
+  long long stableDelay[4];
+  long long delay;
+  long long compCycle;
+  long long occTimes;
   float compRate;
-  int activePEMultTimeNum;
-  int totalPEMultTimeNum;
+  long long activePEMultTimeNum;
+  long long totalPEMultTimeNum;
   float PEUtilRate;
-  int totalBandWidth[3];
+  long long totalBandWidth[3];
   std::vector<std::shared_ptr<AnalyzerResult>> subLevelResultVec;
   AnalyzerResult() { reset(); }
   void reset() {
@@ -79,6 +86,73 @@ struct AnalyzerResult {
     PEUtilRate = 0;
     return *this;
   }
+  void outputLogDataAccess(ARCH::DATATYPE dataType, std::ofstream &logFile) {
+    std::string tensorSym;
+    if (dataType == ARCH::OUTPUT)
+      tensorSym = "output";
+    else {
+      tensorSym = "input_";
+      tensorSym += std::to_string(dataType - ARCH::INPUT);
+    }
+    logFile << "\"unique_" << tensorSym << "\":\""
+            << std::to_string(uniqueVolumn[dataType]);
+    logFile << "\"\n,";
+    logFile << "\"reuse_" << tensorSym << "\":\""
+            << std::to_string(reuseVolumn[dataType]);
+    logFile << "\"\n,";
+    logFile << "\"total_" << tensorSym << "\":\""
+            << std::to_string((totalVolumn[dataType]));
+    logFile << "\"\n,";
+    logFile << "\"reuseRate_" << tensorSym << "\":\""
+            << std::to_string(float(reuseVolumn[dataType]) /
+                              totalVolumn[dataType]);
+    logFile << "\"\n,";
+  }
+  void outputLog(std::ofstream &logFile) {
+    outputLogDataAccess(ARCH::OUTPUT, logFile);
+    outputLogDataAccess(ARCH::INPUT, logFile);
+    outputLogDataAccess(ARCH::WEIGHT, logFile);
+    logFile << "\"bufferSize_output\":\""
+            << std::to_string(requiredDataSize[2]) + "\",\n";
+    for (int j = 0; j < 2; j++) {
+      logFile << std::string("\"bufferSize_input_") + std::to_string(j) +
+                     "\":\""
+              << std::to_string(requiredDataSize[j]) + "\",\n";
+    }
+
+    logFile << "\"totalBandWidth_output\":\""
+            << std::to_string(totalBandWidth[2]) + "\",\n";
+    for (int j = 0; j < 2; j++) {
+      logFile << std::string("\"totalBandWidth_input_") + std::to_string(j) +
+                     "\":\""
+              << std::to_string(totalBandWidth[j]) + "\",\n";
+    }
+    logFile << std::string("\"maxInitDelay_output_") + "\":\""
+            << std::to_string(initDelay[ARCH::OUTPUT]) + "\",\n";
+    for (int j = 0; j < 2; j++) {
+      logFile << std::string("\"maxInitDelay_input_") + std::to_string(j) +
+                     "\":\""
+              << std::to_string(initDelay[j]) + "\",\n";
+    }
+
+    logFile << "\"maxInitTimes\":\"" << std::to_string(initTimes) + "\",\n";
+    logFile << "\"maxStableDelay_output\":\""
+            << std::to_string(stableDelay[2]) + "\",\n";
+
+    for (int j = 0; j < 2; j++) {
+      logFile << std::string("\"maxStableDelay_input_") + std::to_string(j) +
+                     "\":\""
+              << std::to_string(stableDelay[j]) + "\",\n";
+    }
+
+    logFile << std::string("\"maxStableCompDelay\"") + ":\""
+            << std::to_string(stableDelay[3]) + "\",\n";
+    logFile << std::string("\"delay\"") + ":\""
+            << std::to_string(delay) + "\",\n";
+    logFile << std::string("\"compCycleRate\"") + ":\""
+            << std::to_string(compRate) + "\",\n";
+    logFile << "\"PEUtilRate\":\"" << std::to_string(PEUtilRate) << "\"\n";
+  }
 };
 
 struct TransformSearchResult {
@@ -87,13 +161,57 @@ struct TransformSearchResult {
   TransformSearchResult(MAPPING::Transform &T,
                         std::shared_ptr<AnalyzerResult> &result)
       : _result(result), _T(T) {}
+  void outputLog(std::ofstream &logFile) {
+    logFile << "\"Transform Matrix:\":\n";
+    _T.outputT(logFile);
+    logFile << ",";
+    _result->outputLog(logFile);
+  }
 };
 
 struct MultiLevelTransformSearchResult {
-  std::vector<TransformSearchResult> _transformSearchResult;
+  std::vector<std::shared_ptr<TransformSearchResult>> _transformSearchResult;
   MultiLevelTransformSearchResult(){};
   void addResult(MAPPING::Transform T,
                  std::shared_ptr<AnalyzerResult> &result) {
-    _transformSearchResult.emplace_back(T, result);
+    _transformSearchResult.push_back(
+        std::make_shared<TransformSearchResult>(T, result));
+  }
+  void outputLog(std::ofstream &logFile) {
+    int levelNum = _transformSearchResult.size();
+    for (int j = 0; j < levelNum; j++) {
+      if (j != 0)
+        logFile << ",";
+      logFile << "\"LEVEL" + std::to_string(j) + "\":\n{";
+      _transformSearchResult[j]->outputLog(logFile);
+      logFile << "}";
+    }
+  }
+};
+
+struct GroupSearchResult {
+  std::vector<std::vector<std::shared_ptr<WORKLOAD::Iterator>>>
+      _coupledVarVecVec;
+  std::shared_ptr<MultiLevelTransformSearchResult>
+      _multiLevelTransformSearchResult;
+  GroupSearchResult(
+      std::vector<std::vector<std::shared_ptr<WORKLOAD::Iterator>>>
+          coupledVarVecVec,
+      std::shared_ptr<MultiLevelTransformSearchResult>
+          multiLevelTransformSearchResult)
+      : _multiLevelTransformSearchResult(multiLevelTransformSearchResult),
+        _coupledVarVecVec(coupledVarVecVec) {}
+  void outputLog(std::ofstream &logFile, int index, int levelNum) {
+    logFile << " \"Group Search: " << std::to_string(index);
+    for (int i = 0; i < levelNum; i++) {
+      auto vec = _coupledVarVecVec[i];
+      logFile << "Level " + std::to_string(i) << ' ';
+      for (auto num : vec) {
+        logFile << num->getSym() << ' ';
+      }
+    }
+    logFile << "\":{" << std::endl;
+    _multiLevelTransformSearchResult->outputLog(logFile);
+    logFile << "}";
   }
 };

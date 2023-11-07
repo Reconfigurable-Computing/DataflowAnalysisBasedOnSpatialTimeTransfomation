@@ -1,11 +1,12 @@
 #include "include/analysis/multiLevelAnalysis.h"
 void MultLevelAnalyzer::addLevel(
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec,
-    MAPPING::Transform &T, ARCH::Level &L, int spatialDimNum,
-    bool doubleBufferFlag) {
+    MAPPING::Transform &T, ARCH::Level &L, bool doubleBufferFlag) {
+  int spatialDimNum = L.getSpatialDimNum();
   for (auto var : coupledVarVec) {
     _allCoupledVarVec.push_back(var);
   }
+  _coupledVarVecVec.push_back(coupledVarVec);
   extendT(coupledVarVec, spatialDimNum, T);
   extendCoupledVar(coupledVarVec, spatialDimNum);
   Analyzer analyzer =
@@ -18,10 +19,12 @@ void MultLevelAnalyzer::addLevel(
 }
 void MultLevelAnalyzer::addLevel(
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec,
-    ARCH::Level &L, int spatialDimNum, bool doubleBufferFlag) {
+    ARCH::Level &L, bool doubleBufferFlag) {
+  int spatialDimNum = L.getSpatialDimNum();
   for (auto var : coupledVarVec) {
     _allCoupledVarVec.push_back(var);
   }
+  _coupledVarVecVec.push_back(coupledVarVec);
   MAPPING::Transform T(coupledVarVec.size());
   extendT(coupledVarVec, spatialDimNum, T);
   extendCoupledVar(coupledVarVec, spatialDimNum);
@@ -61,7 +64,7 @@ void MultLevelAnalyzer::extendCoupledVar(
   }
   if (coupledVarVec.size() == 2) {
     coupledVarVec.push_back(
-        std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 1, "tmpT")));
+        std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(0, 0, "tmpT")));
   }
 }
 
@@ -71,7 +74,7 @@ bool MultLevelAnalyzer::compAndCheckRequiredDataSize(int level) {
   }
   for (int i = 0; i <= level; i++) {
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> &oneLevelCoupledVarVec =
-        _analyzerSet[i].getCoupledVarVec();
+        _coupledVarVecVec[i];
 
     for (auto var : oneLevelCoupledVarVec) {
       var->unlock();
@@ -145,7 +148,7 @@ void MultLevelAnalyzer::generateSublevelBaseResult(
     subLevelResult->occTimes = _analyzerSet[level].getOccTimes();
     subLevelResultVec.push_back(subLevelResult);
     baseVec.push_back(Base(subLevelResult->delay,
-                           _analyzerSet[level - 1].getRequiredDateSize()));
+                           _analyzerSet[level - 1].getTensorDimRange()));
   } else {
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> curSubCoupledVarVec;
     for (auto &item : subLevelEdgeMap) {
@@ -164,8 +167,8 @@ void MultLevelAnalyzer::generateSublevelBaseResult(
       auto subLevelResult = _analyzerSet[level - 1].getResult();
       subLevelResult->occTimes = _analyzerSet[level].getOccTimes();
       subLevelResultVec.push_back(subLevelResult);
-      baseVec[compBaseIndex(varNum, state, i)] =
-          Base(subLevelResult->delay, subLevelResult->requiredDataSize);
+      baseVec[compBaseIndex(varNum, state, i)] = Base(
+          subLevelResult->delay, _analyzerSet[level - 1].getTensorDimRange());
       changeEdgeByState(0, varNum, i, state, curSubCoupledVarVec);
     }
   }
@@ -186,8 +189,9 @@ void MultLevelAnalyzer::recusiveAnalysis(int level) {
     _analyzerSet[level].setSubLevelResultVec(subLevelResultVec);
     compAndCheckRequiredDataSize(level);
   } else {
+
     std::vector<Base> baseVec;
-    baseVec.push_back(Base());
+    baseVec.push_back({_I.getDimNum(), _W.getDimNum(), _O.getDimNum()});
     _analyzerSet[0].setBase(baseVec);
     _analyzerSet[0].oneAnalysis();
     compAndCheckRequiredDataSize(0);
@@ -240,151 +244,91 @@ void MultLevelAnalyzer::oneAnalysis() {
 
 void MultLevelAnalyzer::outputCSV() {
   int levelNum = _analyzerSet.size();
-  std::ofstream ofile;
-  ofile.open("result.csv", std::ios::app);
-  ofile << "level ,";
-  ofile << "unique_output,";
-  ofile << "reuse_output,";
-  ofile << "total_output,";
-  ofile << "reuseRate_output,";
+  std::ofstream logFile;
+  logFile.open("result.csv", std::ios::app);
+  logFile << "level ,";
+  logFile << "unique_output,";
+  logFile << "reuse_output,";
+  logFile << "total_output,";
+  logFile << "reuseRate_output,";
 
   for (int j = 0; j < 2; j++) {
-    ofile << std::string("unique_input_") + std::to_string(j) + ",";
-    ofile << std::string("reuse_input_") + std::to_string(j) + ",";
-    ofile << std::string("total_input_") + std::to_string(j) + ",";
-    ofile << std::string("reuseRate_input_") + std::to_string(j) + ",";
+    logFile << std::string("unique_input_") + std::to_string(j) + ",";
+    logFile << std::string("reuse_input_") + std::to_string(j) + ",";
+    logFile << std::string("total_input_") + std::to_string(j) + ",";
+    logFile << std::string("reuseRate_input_") + std::to_string(j) + ",";
   }
-  ofile << "bufferSize_output,";
+  logFile << "bufferSize_output,";
   for (int j = 0; j < 2; j++) {
-    ofile << std::string("bufferSize_input_") + std::to_string(j) + ",";
+    logFile << std::string("bufferSize_input_") + std::to_string(j) + ",";
   }
-  ofile << "totalBandWidth_output,";
+  logFile << "totalBandWidth_output,";
   for (int j = 0; j < 2; j++) {
-    ofile << std::string("totalBandWidth_input_") + std::to_string(j) + ",";
+    logFile << std::string("totalBandWidth_input_") + std::to_string(j) + ",";
   }
-  ofile << "maxInitDelay_output,";
+  logFile << "maxInitDelay_output,";
   for (int j = 0; j < 2; j++) {
-    ofile << std::string("maxInitDelay_input_") + std::to_string(j) + ",";
+    logFile << std::string("maxInitDelay_input_") + std::to_string(j) + ",";
   }
-  ofile << "maxInitTimes,";
-  ofile << "maxStableDelay_output,";
+  logFile << "maxInitTimes,";
+  logFile << "maxStableDelay_output,";
   for (int j = 0; j < 2; j++) {
-    ofile << std::string("maxStableDelay_input_") + std::to_string(j) + ",";
+    logFile << std::string("maxStableDelay_input_") + std::to_string(j) + ",";
   }
-  ofile << std::string("maxStableCompDelay") + ",";
-  ofile << std::string("delay") + ",";
-  ofile << std::string("compCycleRate") + ",";
-  ofile << "PEUtilRate" << std::endl;
+  logFile << std::string("maxStableCompDelay") + ",";
+  logFile << std::string("delay") + ",";
+  logFile << std::string("compCycleRate") + ",";
+  logFile << "PEUtilRate" << std::endl;
   for (int i = 0; i < levelNum; i++) {
-    ofile << std::to_string(i) + ',';
-    ofile << std::to_string(_resultSet[i]->uniqueVolumn[2]) + ",";
-    ofile << std::to_string(_resultSet[i]->reuseVolumn[2]) + ",";
-    ofile << std::to_string(_resultSet[i]->totalVolumn[2]) + ",";
-    ofile << std::to_string(float(_resultSet[i]->reuseVolumn[2]) /
-                            _resultSet[i]->totalVolumn[2]) +
-                 ",";
-    for (int j = 0; j < 2; j++) {
-      ofile << std::to_string(_resultSet[i]->uniqueVolumn[j]) + ",";
-      ofile << std::to_string(_resultSet[i]->reuseVolumn[j]) + ",";
-      ofile << std::to_string(_resultSet[i]->totalVolumn[j]) + ",";
-      ofile << std::to_string(float(_resultSet[i]->reuseVolumn[j]) /
-                              _resultSet[i]->totalVolumn[j]) +
+    logFile << std::to_string(i) + ',';
+    logFile << std::to_string(_resultSet[i]->uniqueVolumn[2]) + ",";
+    logFile << std::to_string(_resultSet[i]->reuseVolumn[2]) + ",";
+    logFile << std::to_string(_resultSet[i]->totalVolumn[2]) + ",";
+    logFile << std::to_string(float(_resultSet[i]->reuseVolumn[2]) /
+                              _resultSet[i]->totalVolumn[2]) +
                    ",";
-    }
-    ofile << std::to_string(_resultSet[i]->requiredDataSize[2]) + ",";
     for (int j = 0; j < 2; j++) {
-      ofile << std::to_string(_resultSet[i]->requiredDataSize[j]) + ",";
+      logFile << std::to_string(_resultSet[i]->uniqueVolumn[j]) + ",";
+      logFile << std::to_string(_resultSet[i]->reuseVolumn[j]) + ",";
+      logFile << std::to_string(_resultSet[i]->totalVolumn[j]) + ",";
+      logFile << std::to_string(float(_resultSet[i]->reuseVolumn[j]) /
+                                _resultSet[i]->totalVolumn[j]) +
+                     ",";
     }
-    ofile << std::to_string(_resultSet[i]->totalBandWidth[2]) + ",";
+    logFile << std::to_string(_resultSet[i]->requiredDataSize[2]) + ",";
     for (int j = 0; j < 2; j++) {
-      ofile << std::to_string(_resultSet[i]->totalBandWidth[j]) + ",";
+      logFile << std::to_string(_resultSet[i]->requiredDataSize[j]) + ",";
     }
-    ofile << std::to_string(_resultSet[i]->initDelay[2]) + ",";
+    logFile << std::to_string(_resultSet[i]->totalBandWidth[2]) + ",";
     for (int j = 0; j < 2; j++) {
-      ofile << std::to_string(_resultSet[i]->initDelay[j]) + ",";
+      logFile << std::to_string(_resultSet[i]->totalBandWidth[j]) + ",";
     }
-    ofile << std::to_string(_resultSet[i]->initTimes) + ",";
-    ofile << std::to_string(_resultSet[i]->stableDelay[2]) + ",";
+    logFile << std::to_string(_resultSet[i]->initDelay[2]) + ",";
     for (int j = 0; j < 2; j++) {
-      ofile << std::to_string(_resultSet[i]->stableDelay[j]) + ",";
+      logFile << std::to_string(_resultSet[i]->initDelay[j]) + ",";
     }
-    ofile << std::to_string(_resultSet[i]->stableDelay[3]) + ",";
-    ofile << std::to_string(_resultSet[i]->delay) + ",";
-    ofile << std::to_string(_resultSet[i]->compRate) + ",";
-    ofile << std::to_string(_resultSet[i]->PEUtilRate) << std::endl;
+    logFile << std::to_string(_resultSet[i]->initTimes) + ",";
+    logFile << std::to_string(_resultSet[i]->stableDelay[2]) + ",";
+    for (int j = 0; j < 2; j++) {
+      logFile << std::to_string(_resultSet[i]->stableDelay[j]) + ",";
+    }
+    logFile << std::to_string(_resultSet[i]->stableDelay[3]) + ",";
+    logFile << std::to_string(_resultSet[i]->delay) + ",";
+    logFile << std::to_string(_resultSet[i]->compRate) + ",";
+    logFile << std::to_string(_resultSet[i]->PEUtilRate) << std::endl;
     // std::cout << _resultSet[i]->delay << std::endl;
   }
-  ofile.close();
+  logFile.close();
 }
 
-void MultLevelAnalyzer::outputTxt() {
-  std::ofstream ofile;
-  ofile.open("result.txt", std::ios::out);
-  outputTxt(ofile);
-}
-
-void MultLevelAnalyzer::outputDataAccess(ARCH::DATATYPE dataType,
-                                         std::ofstream &ofile, int level) {
-  std::string tensorSym;
-  if (dataType == ARCH::OUTPUT)
-    tensorSym = "output";
-  else {
-    tensorSym = "input_";
-    tensorSym += std::to_string(dataType - ARCH::INPUT);
-  }
-  ofile << "unique_" << tensorSym << ':'
-        << std::to_string(_resultSet[level]->uniqueVolumn[dataType]) + "\n";
-  ofile << "reuse_" << tensorSym << ':'
-        << std::to_string(_resultSet[level]->reuseVolumn[dataType]) + "\n";
-  ofile << "total_" << tensorSym << ':'
-        << std::to_string((_resultSet[level]->totalVolumn[dataType])) + "\n";
-  ofile << "reuseRate_" << tensorSym << ':'
-        << std::to_string(float(_resultSet[level]->reuseVolumn[dataType]) /
-                          _resultSet[level]->totalVolumn[dataType]) +
-               "\n";
-}
-
-void MultLevelAnalyzer::outputTxt(std::ofstream &ofile) {
+void MultLevelAnalyzer::outputLog(std::ofstream &logFile) {
   int levelNum = _analyzerSet.size();
   for (int i = 0; i < levelNum; i++) {
-    ofile << "LEVEL" + std::to_string(i) + '\n';
-    _analyzerSet[i].outputConfig(ofile);
-    outputDataAccess(ARCH::OUTPUT, ofile, i);
-    outputDataAccess(ARCH::INPUT, ofile, i);
-    outputDataAccess(ARCH::WEIGHT, ofile, i);
-    ofile << "bufferSize_output:"
-          << std::to_string(_resultSet[i]->requiredDataSize[2]) + "\n";
-    for (int j = 0; j < 2; j++) {
-      ofile << std::string("bufferSize_input_") + std::to_string(j) + ":"
-            << std::to_string(_resultSet[i]->requiredDataSize[j]) + "\n";
-    }
-
-    ofile << "totalBandWidth_output:"
-          << std::to_string(_resultSet[i]->totalBandWidth[2]) + "\n";
-    for (int j = 0; j < 2; j++) {
-      ofile << std::string("totalBandWidth_input_") + std::to_string(j) + ':'
-            << std::to_string(_resultSet[i]->totalBandWidth[j]) + "\n";
-    }
-    for (int j = 0; j < 2; j++) {
-      ofile << std::string("maxInitDelay_input_") + std::to_string(j) + ":"
-            << std::to_string(_resultSet[i]->initDelay[j]) + "\n";
-    }
-
-    ofile << "maxInitTimes:" << std::to_string(_resultSet[i]->initTimes) + "\n";
-    ofile << "maxStableDelay_output:"
-          << std::to_string(_resultSet[i]->stableDelay[2]) + "\n";
-
-    for (int j = 0; j < 2; j++) {
-      ofile << std::string("maxStableDelay_input_") + std::to_string(j) + ":"
-            << std::to_string(_resultSet[i]->stableDelay[j]) + "\n";
-    }
-
-    ofile << std::string("maxStableCompDelay") + ":"
-          << std::to_string(_resultSet[i]->stableDelay[3]) + "\n";
-    ofile << std::string("delay") + ":"
-          << std::to_string(_resultSet[i]->delay) + "\n";
-    ofile << std::string("compCycleRate") + ":"
-          << std::to_string(_resultSet[i]->compRate) + "\n";
-    ofile << "PEUtilRate:" << std::to_string(_resultSet[i]->PEUtilRate) << "\n";
+    if (i != 0)
+      logFile << ",";
+    logFile << "\"LEVEL" + std::to_string(i) + "\":\n{";
+    _analyzerSet[i].outputConfig(logFile);
+    _resultSet[i]->outputLog(logFile);
+    logFile << "}";
   }
 }

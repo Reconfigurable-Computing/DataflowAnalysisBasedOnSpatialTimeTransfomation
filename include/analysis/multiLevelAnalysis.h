@@ -13,6 +13,8 @@ private:
   WORKLOAD::Tensor &_W;
   WORKLOAD::Tensor &_O;
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> _allCoupledVarVec;
+  std::vector<std::vector<std::shared_ptr<WORKLOAD::Iterator>>>
+      _coupledVarVecVec;
   std::vector<std::shared_ptr<AnalyzerResult>> _resultSet;
   std::vector<bool> _validFlags;
 
@@ -48,11 +50,10 @@ public:
                     WORKLOAD::Tensor &O)
       : _I(I), _W(W), _O(O) {}
   void addLevel(std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec,
-                MAPPING::Transform &T, ARCH::Level &L, int spatialDimNum = 2,
+                MAPPING::Transform &T, ARCH::Level &L,
                 bool doubleBufferFlag = true);
   void addLevel(std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec,
-                ARCH::Level &L, int spatialDimNum = 2,
-                bool doubleBufferFlag = true);
+                ARCH::Level &L, bool doubleBufferFlag = true);
   bool changeT(int level,
                std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
                int spatialDimNum, MAPPING::Transform &T, bool checkFlag) {
@@ -78,18 +79,19 @@ public:
   }
   void oneAnalysis();
   void outputCSV();
-  void outputTxt();
-  void outputTxt(std::ofstream &ofile);
-  void outputDataAccess(ARCH::DATATYPE dataType, std::ofstream &ofile,
-                        int level);
+  void outputLog(std::ofstream &logFile);
   void constructSearchResult(
-      std::vector<MultiLevelTransformSearchResult> &mltsResult) {
-    mltsResult.emplace_back();
+      std::vector<std::shared_ptr<MultiLevelTransformSearchResult>>
+          &mltsResult) {
+    if (_resultSet.size() == 0)
+      return;
+    mltsResult.push_back(std::make_shared<MultiLevelTransformSearchResult>());
     int levelNum = _analyzerSet.size();
     int mltsResultSize = mltsResult.size();
     for (int i = 0; i < levelNum; i++) {
-      mltsResult[mltsResultSize - 1].addResult(_analyzerSet[i].getT(),
-                                               _resultSet[i]);
+      mltsResult[mltsResultSize - 1]->addResult(_analyzerSet[i].getT(),
+                                                _resultSet[i]);
     }
   }
+  void getTimeLine(int level) { _analyzerSet[level].getTimeLine(); }
 };

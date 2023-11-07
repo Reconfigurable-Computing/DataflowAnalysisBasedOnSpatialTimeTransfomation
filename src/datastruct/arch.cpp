@@ -102,51 +102,64 @@ int NetworkGroup::getInitOrOutDelay(
     int base, int bitWidth, std::pair<int, int> &PEXRange,
     std::pair<int, int> &PEYRange) // for input and weight
 {
-  if (_networkSet->size() == 1) {
+  if (_peFlag) {
+    return 0;
+  } else if (_networkSet->size() == 1) {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     // MULTICAST UNICAST SYSTOLIC
-    return (*_networkSet)[0]->getDelay(base, bitWidth);
+    return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
+                    bitWidth);
   } else {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
     if (networkType1 == STATIONARY || networkType1 == UNICAST) {
       // STATIONARY - SYSTOLIC UNICAST
       if (networkType2 == SYSTOLIC) {
-        return (*_networkSet)[1]->getDelay(base, bitWidth) *
+        return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
+                        bitWidth) *
                (*_networkSet)[1]->getMaxCoupleNum(PEXRange, PEYRange);
       } else // UNICAST
       {
-        return (*_networkSet)[1]->getDelay(base, bitWidth);
+        return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
+                        bitWidth);
       }
     } else if (networkType2 == STATIONARY) {
       if (networkType1 == SYSTOLIC) {
-        return (*_networkSet)[0]->getDelay(base, bitWidth) *
+        return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
+                        bitWidth) *
                (*_networkSet)[0]->getMaxCoupleNum(PEXRange, PEYRange);
       } else // MULTICAST
       {
-        return (*_networkSet)[0]->getDelay(base, bitWidth);
+        return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
+                        bitWidth);
       }
     } else {
-      return (*_networkSet)[0]->getDelay(base, bitWidth);
-      ;
+      return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
+                      bitWidth);
     }
   }
 }
-int NetworkGroup::getStableDelay(int base, int bitWidth) {
-  if (_networkSet->size() == 1) {
+int NetworkGroup::getStableDelay(int base, int bitWidth,
+                                 std::pair<int, int> &PEXRange,
+                                 std::pair<int, int> &PEYRange) {
+  if (_peFlag) {
+    return 0;
+  } else if (_networkSet->size() == 1) {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     // MULTICAST UNICAST SYSTOLIC
-    return (*_networkSet)[0]->getDelay(base, bitWidth);
+    return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
+                    bitWidth);
   } else {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
     if (networkType1 == STATIONARY || networkType2 == STATIONARY) {
       return 0;
     } else if (networkType1 == UNICAST) {
-      return (*_networkSet)[1]->getDelay(base, bitWidth);
+      return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
+                      bitWidth);
     } else {
-      return std::max((*_networkSet)[0]->getDelay(base, bitWidth),
-                      (*_networkSet)[1]->getDelay(base, bitWidth));
+      return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
+                      bitWidth);
     }
   }
 }

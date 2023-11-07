@@ -1,5 +1,5 @@
 #include "include/util/timeline.h"
-
+namespace TIMELINE {
 bool timeLineGreater(std::shared_ptr<TimeLine> &t1,
                      std::shared_ptr<TimeLine> &t2) {
   for (int i = t1->_time.size() - 1; i >= 0; i--) {
@@ -27,6 +27,10 @@ void getTimeLine(
   int colNum = T.getColNum();
   std::shared_ptr<WORKLOAD::Iterator> PEX;
   std::shared_ptr<WORKLOAD::Iterator> PEY;
+  I.bindVar(coupledVarVec);
+  O.bindVar(coupledVarVec);
+  W.bindVar(coupledVarVec);
+
   for (int i = 0; i < colNum; i++) {
     if (T(0, i) == 1)
       PEX = coupledVarVec[i];
@@ -44,3 +48,4 @@ void getTimeLine(
   generator.generateTimeLine();
   generator.generatorSort();
 }
+} // namespace TIMELINE
