@@ -9,13 +9,22 @@
 #include <memory>
 #include <string>
 #include <vector>
+
 namespace ARCH {
 // decclare the network reuse type
 typedef enum { UNICAST, MULTICAST, SYSTOLIC, STATIONARY } NETWORKTYPE;
 // declare the physical type of buffer
-typedef enum { SRAM, DRAM, REG } BufferType;
+typedef enum { SRAM, REG } BufferType;
 // declare the data type of buffer
-typedef enum { INPUT = 0, WEIGHT = 1, OUTPUT = 2, TOTAL = 3 } DATATYPE;
+typedef enum {
+  INPUT = 0,
+  WEIGHT = 1,
+  OUTPUT = 2,
+  TOTAL = 3,
+  ALLINPUT = 4
+} DATATYPE;
+double getNetworkCost(ARCH::DATATYPE dataType, ARCH::NETWORKTYPE networkType,
+                      int linkNum, int flag, int dataWidth);
 class Array {
 private:
   int _rowNum;  // the row num of array
@@ -44,8 +53,6 @@ public:
       : _firstCoord(firstCoord), _coupledNum(coupledNum), _bandWidth(0) {}
   std::pair<int, int> getFirstCoord() { return _firstCoord; }
   int getCoupledNum() { return _coupledNum; }
-  void setBandWidth(int bandWidth) { _bandWidth = bandWidth; }
-  int getBandWidth() { return _bandWidth; }
 }; // end of NetworkItem
 class Network {
 private:
@@ -53,28 +60,69 @@ private:
   std::shared_ptr<std::map<std::pair<int, int>, std::shared_ptr<NetworkItem>>>
       _networkItemMap; // store network, unicast networks do not store
   NETWORKTYPE _networkType;
-  int _bandWidth; // for unicast and systolic is common case  for multicast
-                  // means baseBandWidth  unit:bit/cycle
   int _rowNum;
   int _colNum;
 
 public:
+  double getSlantNetworkCost(int dataWidth, DATATYPE dataType, int flag) {
+    double ret = 0;
+    for (auto item : (*_networkItemMap)) {
+      ret += getNetworkCost(dataType, _networkType,
+                            item.second->getCoupledNum(), flag, dataWidth);
+    }
+    return ret;
+  }
+  double getSlantNetworkEnergy(
+      int dataWidth, DATATYPE dataType,
+      std::shared_ptr<std::map<std::pair<int, int>, long long>>
+          activateCountMap) {
+    double ret = 0;
+    for (auto item : (*_networkItemMap)) {
+      if ((*activateCountMap).count(item.first) > 0) {
+        ret += (*activateCountMap)[item.first] *
+               getNetworkCost(dataType, _networkType,
+                              item.second->getCoupledNum(), 0, dataWidth);
+      }
+    }
+    return ret;
+  }
+  void updateNetworkActivateCountMap(
+      int colNum, std::pair<int, int> &PEXRange, std::pair<int, int> &PEYRange,
+      long long base,
+      std::shared_ptr<std::map<std::pair<int, int>, long long>>
+          activateCountMap,
+      int flag) {
+    for (auto item : (*_networkItemMap)) {
+      if (getSlantCoupleNum(PEXRange, PEYRange, item.first) > 0) {
+        if ((*activateCountMap).count(item.first) > 0) {
+          if (!flag)
+            (*activateCountMap)[item.first] += base;
+          else
+            (*activateCountMap)[item.first] =
+                std::max((*activateCountMap)[item.first], base);
+        } else {
+          (*activateCountMap)[item.first] = base;
+        }
+      }
+    }
+  }
+  int getCoupledNum(std::pair<int, int> key) {
+    return (*_networkItemMap)[key]->getCoupledNum();
+  }
+  int getCoupledNum() {
+    return (*_networkItemMap).begin()->second->getCoupledNum();
+  }
   Network(std::vector<int> featureVec, int rowNum, int colNum,
           NETWORKTYPE networkType, int bandWidth,
           int doubleNetworkFirstFlag = 0)
-      : _featureVec(featureVec), _networkType(networkType),
-        _bandWidth(bandWidth), _colNum(colNum), _rowNum(rowNum) {
+      : _featureVec(featureVec), _networkType(networkType), _colNum(colNum),
+        _rowNum(rowNum) {
 
     if (_networkType == SYSTOLIC || _networkType == MULTICAST) {
       _networkItemMap = std::make_shared<
           std::map<std::pair<int, int>, std::shared_ptr<NetworkItem>>>();
       constructNetwork(rowNum, colNum, doubleNetworkFirstFlag);
-      if (_networkType == MULTICAST) {
-        setBandWidthByCoupleNumRatio(bandWidth);
-      } else // SYSTOLIC
-      {
-        setBandWidth(bandWidth);
-      }
+
     } else // UNICAST STATIONARY(no use)
     {
       // _bandWidth = bandWidth;
@@ -91,39 +139,14 @@ public:
   int getMaxCoupleNum(std::pair<int, int> &PEXRange,
                       std::pair<int, int> &PEYRange);
   void constructNetwork(int rowNum, int colNum, int doubleNetworkFirstFlag);
-  void setBandWidth(int bandWidth) {
-    _bandWidth = bandWidth;
-    DEBUG::check(_networkType != UNICAST && _networkType != STATIONARY,
-                 DEBUG::NETWORKOPERROR, "setBandWidth");
-    for (auto item : *_networkItemMap) {
-      item.second->setBandWidth(bandWidth);
-    }
-  }
+
   // void setBandWidth(std::pair<int, int> firstCoord, int bandWidth)
   //{
   //    assert(_networkType != UNICAST && _networkType != STATIONARY);
   //    (*_networkItemMap)[firstCoord]->setBandWidth(bandWidth);
   //}
-  void setBandWidthByCoupleNumRatio(int baseBandWidth) {
-    _bandWidth = baseBandWidth;
-    DEBUG::check(_networkType != UNICAST && _networkType != STATIONARY,
-                 DEBUG::NETWORKOPERROR, "setBandWidthByCoupleNumRatio");
-    for (auto item : *_networkItemMap) {
-      item.second->setBandWidth(baseBandWidth * item.second->getCoupledNum());
-    }
-  }
-  int getBandWidth() { return _bandWidth; }
+
   int getNetworkItemNum() { return _networkItemMap->size(); }
-  int getDelay(int base, int bitWidth) {
-    return std::ceil(double(base) * double(bitWidth) / double(_bandWidth));
-  }
-  int getBufferBandWidth() {
-    int ret = 0;
-    for (auto item : *_networkItemMap) {
-      ret += item.second->getBandWidth();
-    }
-    return ret;
-  }
 }; // end of Network
 
 class NetworkGroup {
@@ -133,8 +156,99 @@ private:
   std::vector<std::vector<int>> _featureVec;
   bool _peFlag;
   int _bandWidth;
+  int _rowNum;
+  int _colNum;
 
 public:
+  double getSlantNetworkCost(int dataWidth, int flag) {
+    assert(checkIfSlant());
+    return (*_networkSet)[0]->getSlantNetworkCost(dataWidth, _dataType, flag);
+  }
+  double getSlantNetworkEnergy(
+      int dataWidth, std::shared_ptr<std::map<std::pair<int, int>, long long>>
+                         activateCountMap) {
+    NETWORKTYPE networkType1 = classifyNetworkType(_featureVec[0]);
+    return (*_networkSet)[0]->getSlantNetworkEnergy(dataWidth, _dataType,
+                                                    activateCountMap);
+  }
+  double getNoSlantNetworkCost(int dataWidth, int flag) {
+    assert(!checkIfSlant());
+    double ret = 0;
+    int ratio = 0;
+    if (_networkSet->size() == 1) {
+      NETWORKTYPE networkType = classifyNetworkType(_featureVec[0]);
+      ret = getNetworkCost(_dataType, networkType,
+                           (*_networkSet)[0]->getCoupledNum(), flag, dataWidth);
+      if (flag == 0) {
+        ratio = 1;
+      } else {
+        ratio = (*_networkSet)[0]->getNetworkItemNum();
+      }
+    } else {
+
+      if (checkIfUnicast()) {
+        ret = getNetworkCost(_dataType, UNICAST, 1, flag, dataWidth);
+        if (flag == 0) {
+          ratio = 1;
+        } else {
+          ratio = _rowNum * _colNum;
+        }
+      } else if (checkIfStationary()) {
+        NETWORKTYPE networkType1 = classifyNetworkType(_featureVec[0]);
+        if (networkType1 == STATIONARY) {
+          ret = getNetworkCost(_dataType, UNICAST, 1, flag, dataWidth);
+          if (flag == 0) {
+            ratio = 1;
+          } else {
+            ratio = _rowNum * _colNum;
+          }
+        } else { // networkType2 is STATIONARY  MULTICAST/SYSTOLIC - STATIONARY
+          ret = getNetworkCost(_dataType, networkType1,
+                               (*_networkSet)[0]->getCoupledNum(), flag,
+                               dataWidth);
+          if (flag == 0) {
+            ratio = 1;
+          } else {
+            ratio = (*_networkSet)[0]->getNetworkItemNum();
+          }
+        }
+      } else {
+        NETWORKTYPE networkType1 = classifyNetworkType(_featureVec[0]);
+        NETWORKTYPE networkType2 = classifyNetworkType(_featureVec[1]);
+        ret = getNetworkCost(_dataType, networkType1,
+                             (*_networkSet)[0]->getCoupledNum(), flag,
+                             dataWidth) +
+              (*_networkSet)[0]->getCoupledNum() *
+                  getNetworkCost(_dataType, networkType2,
+                                 (*_networkSet)[1]->getCoupledNum(), flag,
+                                 dataWidth);
+        ratio = 1;
+      }
+    }
+    assert(ratio != 0);
+    return ratio * ret;
+  }
+
+  void updateNetworkActivateCountMap(
+      int colNum, std::pair<int, int> &PEXRange, std::pair<int, int> &PEYRange,
+      long long base,
+      std::shared_ptr<std::map<std::pair<int, int>, long long>>
+          activateCountMap,
+      int flag) {
+    if (!checkIfSlant()) {
+      return;
+    }
+    (*_networkSet)[0]->updateNetworkActivateCountMap(
+        colNum, PEXRange, PEYRange, base, activateCountMap, flag);
+  }
+  bool checkIfSlant() {
+    int featureX = _featureVec[0][0], featureY = _featureVec[0][1],
+        featureT = _featureVec[0][2];
+    if (featureX != 0 && featureY != 0)
+      return true;
+    else
+      return false;
+  }
   void outputNetworkGroup(std::ofstream &logFile) {
     std::string ret;
     int reuseVecNum = _featureVec.size();
@@ -154,11 +268,13 @@ public:
     logFile << "}";
     return;
   }
-  int getDelay(int base, int bitWidth) {
-    return std::ceil(double(base) * double(bitWidth) / double(_bandWidth));
+  int getDelay(int base, int dataWidth) {
+    return std::ceil(double(base) * double(dataWidth) / double(_bandWidth));
   }
-  NetworkGroup(DATATYPE dataType, bool peFlag, int bandWidth)
-      : _dataType(dataType), _peFlag(peFlag), _bandWidth(bandWidth) {
+  NetworkGroup(DATATYPE dataType, bool peFlag, int bandWidth, int rowNum,
+               int colNum)
+      : _dataType(dataType), _peFlag(peFlag), _bandWidth(bandWidth),
+        _rowNum(rowNum), _colNum(colNum) {
     _networkSet = std::make_shared<std::vector<std::shared_ptr<Network>>>();
   }
   NETWORKTYPE classifyNetworkType(std::vector<int> featureVec) {
@@ -183,7 +299,7 @@ public:
   }
   NetworkGroup(DATATYPE dataType, int rowNum, int colNum, int bandWidth,
                std::vector<int> featureVec1, bool peFlag)
-      : NetworkGroup(dataType, peFlag, bandWidth) {
+      : NetworkGroup(dataType, peFlag, bandWidth, rowNum, colNum) {
     _featureVec.push_back(featureVec1);
     NETWORKTYPE networkType;
     networkType = classifyNetworkType(featureVec1);
@@ -208,7 +324,7 @@ public:
   NetworkGroup(DATATYPE dataType, int rowNum, int colNum, int bandWidth,
                std::vector<int> featureVec1, std::vector<int> featureVec2,
                bool peFlag)
-      : NetworkGroup(dataType, peFlag, bandWidth) {
+      : NetworkGroup(dataType, peFlag, bandWidth, rowNum, colNum) {
     NETWORKTYPE networkType1, networkType2;
     networkType1 = classifyNetworkType(featureVec1);
     networkType2 = classifyNetworkType(featureVec2);
@@ -250,7 +366,6 @@ public:
           featureVec1, rowNum, colNum, networkType1, 0, 1));
       _networkSet->push_back(std::make_shared<Network>(
           featureVec2, rowNum, colNum, networkType2, bandWidth));
-      setFirstNetworkBySecondNetwork(networkType1, networkType2);
     }
   }
   bool checkDoubleNetwork(std::vector<int> featureVec1,
@@ -270,16 +385,6 @@ public:
     }
     return false;
   }
-  void setFirstNetworkBySecondNetwork(NETWORKTYPE networkType1,
-                                      NETWORKTYPE networkType2) {
-    if (networkType1 == MULTICAST) {
-      (*_networkSet)[0]->setBandWidthByCoupleNumRatio(
-          (*_networkSet)[1]->getBandWidth());
-    } else // SYSTOLIC
-    {
-      (*_networkSet)[0]->setBandWidth((*_networkSet)[1]->getBandWidth());
-    }
-  }
 
   NETWORKTYPE getNetworkType() // to do mult network
   {
@@ -293,7 +398,6 @@ public:
     if (_networkSet->size() == 1) {
       return (*_networkSet)[0]->getActiveAccessPointNum(PEXRange, PEYRange);
     } else {
-
       if (checkIfStationary()) {
         NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
         if (networkType1 == STATIONARY)
@@ -334,15 +438,25 @@ public:
       }
     }
   }
-  int getInitOrOutDelay(int base, int bitWidth, std::pair<int, int> &PEXRange,
+  int getInitOrOutDelay(int base, int dataWidth, std::pair<int, int> &PEXRange,
                         std::pair<int, int> &PEYRange);
-  int getStableDelay(int base, int bitWidth, std::pair<int, int> &PEXRange,
+  long long getInitOrOutBW(int base, int dataWidth,
+                           std::pair<int, int> &PEXRange,
+                           std::pair<int, int> &PEYRange,
+                           long long stableDelay);
+  int getStableDelay(int base, int dataWidth, std::pair<int, int> &PEXRange,
                      std::pair<int, int> &PEYRange);
   bool compareReuseVecAndFeatureVec(std::vector<int> &vec1,
                                     std::vector<int> &vec2) {
     if (vec1[0] < 0) {
       for (int j = 0; j < 3; j++) {
-        vec1[0] = -vec1[0];
+        vec1[j] = -vec1[j];
+      }
+    }
+    if (vec2[0] < 0) {
+      int vec2Len = vec2.size();
+      for (int j = 0; j < vec2Len; j++) {
+        vec2[j] = -vec2[j];
       }
     }
     bool ret = true;
@@ -384,19 +498,28 @@ public:
       return false;
     } else {
       NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
-      bool flag0 = false, flag1 = false;
-      for (auto &rvec : *reuseVec) {
-        if (compareReuseVecAndFeatureVec(_featureVec[0], rvec)) {
-          flag0 = true;
+      if (networkType2 == STATIONARY) {
+        for (auto &rvec : *reuseVec) {
+          if (compareReuseVecAndFeatureVec(_featureVec[0], rvec)) {
+            return true;
+          }
         }
-        if (compareReuseVecAndFeatureVec(_featureVec[1], rvec)) {
-          flag1 = true;
+        return false;
+      } else {
+        bool flag0 = false, flag1 = false;
+        for (auto &rvec : *reuseVec) {
+          if (compareReuseVecAndFeatureVec(_featureVec[0], rvec)) {
+            flag0 = true;
+          }
+          if (compareReuseVecAndFeatureVec(_featureVec[1], rvec)) {
+            flag1 = true;
+          }
         }
+        return flag0 && flag1;
       }
-      return flag0 && flag1;
     }
   }
-  int getBufferBandWidth() { return _bandWidth; }
+  int getNetworkBandWidth() { return _bandWidth; }
   bool checkIfUnlockPEDim(int index) {
     assert(index == 0 || index == 1);
     if (_networkSet->size() == 1)
@@ -419,19 +542,18 @@ private:
   DATATYPE _dataType;
   long long _capacity; // define how many bytes can hold by buffer
   int _wordBit;        // the word bit of buffer
-  int _readBW;         // read bandwidth
-  int _writeBW;        // write bandwidth
   int _readPort;       // define how many network read this buffer
 
 public:
   Buffer(BufferType bufferType, DATATYPE dataType, long long capacity,
          int wordBit)
       : _bufferType(bufferType), _dataType(dataType), _capacity(capacity),
-        _wordBit(wordBit), _readBW(0), _writeBW(0), _readPort(0) {}
+        _wordBit(wordBit), _readPort(0) {}
   bool checkBufferSize(long long requiredBufferSize) {
-    return requiredBufferSize * _wordBit / 8 <= _capacity;
+    return requiredBufferSize <= _capacity;
   }
   long long getCapacity() { return _capacity; }
+  double getBufferCost(int flag, int bankNum, int dataWidthRatio);
 }; // end of Buffer
 class Level {
 private:
@@ -440,16 +562,18 @@ private:
       _networkGroupSet;
   std::shared_ptr<Array> _array;
   bool _inputWeightSharedBWFlag;
-  int _bitWidth;
+  bool _totalSharedBWFlag;
+  int _dataWidth;
   bool _peFlag;
+
   void appendArray(int rowNum, int colNum, int spaitalNum) {
-    _array = std::make_shared<Array>(rowNum, colNum, _bitWidth, spaitalNum);
+    _array = std::make_shared<Array>(rowNum, colNum, _dataWidth, spaitalNum);
   }
 
 public:
-  Level(int rowNum, int colNum, int bitWidth, bool peFlag = false,
+  Level(int rowNum, int colNum, int dataWidth, bool peFlag = false,
         int spatialDimNum = 2)
-      : _bitWidth(bitWidth) {
+      : _dataWidth(dataWidth) {
     _bufferSet =
         std::make_shared<std::map<DATATYPE, std::shared_ptr<Buffer>>>();
     _networkGroupSet =
@@ -458,17 +582,129 @@ public:
     appendArray(rowNum, colNum, spatialDimNum);
     _peFlag = peFlag;
     _inputWeightSharedBWFlag = false;
+    _totalSharedBWFlag = false;
   }
-  Level(int rowNum, int bitWidth, bool peFlag = false)
-      : Level(rowNum, 1, bitWidth, peFlag, 1) {}
-  Level(int bitWidth, bool peFlag = false) : Level(1, 1, bitWidth, peFlag, 0) {}
+  Level(int rowNum, int dataWidth, bool peFlag = false)
+      : Level(rowNum, 1, dataWidth, peFlag, 1) {}
+  Level(int dataWidth, bool peFlag = false)
+      : Level(1, 1, dataWidth, peFlag, 0) {}
+
+  void updateNetworkActivateCountMap(
+      DATATYPE dataType, std::pair<int, int> &PEXRange,
+      std::pair<int, int> &PEYRange, long long base,
+      std::shared_ptr<std::map<std::pair<int, int>, long long>>
+          activateCountMap,
+      int flag = 0) {
+    (*_networkGroupSet)[dataType]->updateNetworkActivateCountMap(
+        _array->getColNum(), PEXRange, PEYRange, base, activateCountMap, flag);
+  }
+  bool checkIfSlant(DATATYPE dataType) {
+    return (*_networkGroupSet)[dataType]->checkIfSlant();
+  }
+
+  double getBufferCost(DATATYPE dataType, int flag) {
+    if (_inputWeightSharedBWFlag) {
+      int inputBandwidth =
+          (*_networkGroupSet)[ARCH::INPUT]->getNetworkBandWidth();
+      int weightBandwidth =
+          (*_networkGroupSet)[ARCH::WEIGHT]->getNetworkBandWidth();
+      assert(inputBandwidth == weightBandwidth);
+      int bankNum = (inputBandwidth + _dataWidth - 1) / _dataWidth;
+      return (*_bufferSet)[dataType]->getBufferCost(flag, bankNum,
+                                                    _dataWidth / 8);
+    } else if (_totalSharedBWFlag) {
+      int inputBandwidth =
+          (*_networkGroupSet)[ARCH::INPUT]->getNetworkBandWidth();
+      int weightBandwidth =
+          (*_networkGroupSet)[ARCH::WEIGHT]->getNetworkBandWidth();
+      assert(inputBandwidth == weightBandwidth);
+      int outputBandwidth =
+          (*_networkGroupSet)[ARCH::OUTPUT]->getNetworkBandWidth();
+      int bankNum =
+          (std::max(inputBandwidth, outputBandwidth) + _dataWidth - 1) /
+          _dataWidth;
+      return (*_bufferSet)[dataType]->getBufferCost(flag, bankNum,
+                                                    _dataWidth / 8);
+    } else {
+      int bandwidth = (*_networkGroupSet)[dataType]->getNetworkBandWidth();
+      int bankNum = (bandwidth + _dataWidth - 1) / _dataWidth;
+      return (*_bufferSet)[dataType]->getBufferCost(flag, bankNum,
+                                                    _dataWidth / 8);
+    }
+  }
+  double getBufferAreaAndLeakagePower(DATATYPE dataType, int flag) {
+    if (_inputWeightSharedBWFlag) {
+      if (dataType == INPUT) {
+        return getBufferCost(ALLINPUT, flag);
+      } else if (dataType == WEIGHT) {
+        return 0;
+      } else {
+        return getBufferCost(dataType, flag);
+      }
+    } else if (_totalSharedBWFlag) {
+      if (dataType == INPUT) {
+        return getBufferCost(TOTAL, flag);
+      } else {
+        return 0;
+      }
+    } else {
+      return getBufferCost(dataType, flag);
+    }
+  }
+
+  double getBufferReadWriteEnergy(DATATYPE dataType, long long count,
+                                  int readWriteFlag) {
+    double perEnergy = 0;
+    if (_inputWeightSharedBWFlag) {
+      if (dataType == INPUT || dataType == WEIGHT) {
+        perEnergy = getBufferCost(ALLINPUT, readWriteFlag);
+      } else {
+        perEnergy = getBufferCost(dataType, readWriteFlag);
+      }
+    } else if (_totalSharedBWFlag) {
+      perEnergy = getBufferCost(TOTAL, readWriteFlag);
+    } else {
+      perEnergy = getBufferCost(dataType, readWriteFlag);
+    }
+    return perEnergy * count;
+  }
+  double getMacCost(int flag, int rowNum, int colNum);
+  double getMacCost(int flag) {
+    return getMacCost(flag, _array->getRowNum(), _array->getColNum());
+  }
+  double getMacEnergy(long long count) { return count * getMacCost(0, 1, 1); }
+  double getNoSlantNetworkCost(DATATYPE dataType, int flag) {
+    return (*_networkGroupSet)[dataType]->getNoSlantNetworkCost(_dataWidth,
+                                                                flag);
+  }
+  double getNoSlantNetworkEnergy(DATATYPE dataType, long long count) {
+    return getNoSlantNetworkCost(dataType, 0) * count;
+  }
+
+  // for leakage power and area
+  double getSlantNetworkCost(DATATYPE dataType, int flag) {
+    return (*_networkGroupSet)[dataType]->getSlantNetworkCost(_dataWidth, flag);
+  }
+  double getSlantNetworkEnergy(
+      DATATYPE dataType,
+      std::shared_ptr<std::map<std::pair<int, int>, long long>>
+          activateCountMap) {
+    return (*_networkGroupSet)[dataType]->getSlantNetworkEnergy(
+        _dataWidth, activateCountMap);
+  }
+
   void setInputWeightSharedBW() { _inputWeightSharedBWFlag = true; }
   bool ifInputWeightSharedBW() { return _inputWeightSharedBWFlag; }
   int getSpatialDimNum() { return _array->getSpatialDimNum(); }
   void appendBuffer(BufferType bufferType, DATATYPE dataType,
                     long long capacity = LLONG_MAX) {
+    if (dataType == ARCH::ALLINPUT) {
+      _inputWeightSharedBWFlag = true;
+    } else if (dataType == ARCH::TOTAL) {
+      _totalSharedBWFlag = true;
+    }
     (*_bufferSet)[dataType] =
-        std::make_shared<Buffer>(bufferType, dataType, capacity, _bitWidth);
+        std::make_shared<Buffer>(bufferType, dataType, capacity, _dataWidth);
   }
   void appendNetworkGroup(DATATYPE dataType, int bandWidth,
                           std::vector<int> featureVec1) {
@@ -491,6 +727,7 @@ public:
     return (*_networkGroupSet)[dataType]->getNetworkType();
   }
   bool checkIfBufferTotal() { return _bufferSet->size() == 1; }
+  bool checkIfBufferInputALL() { return _bufferSet->size() == 2; }
   int getActiveAccessPointNum(
       DATATYPE dataType, std::pair<int, int> &PEXRange,
       std::pair<int, int> &PEYRange) // to do mult network
@@ -501,12 +738,19 @@ public:
   int getInitOrOutDelay(DATATYPE dataType, int base,
                         std::pair<int, int> &PEXRange,
                         std::pair<int, int> &PEYRange) {
-    return (*_networkGroupSet)[dataType]->getInitOrOutDelay(base, _bitWidth,
+    return (*_networkGroupSet)[dataType]->getInitOrOutDelay(base, _dataWidth,
                                                             PEXRange, PEYRange);
+  }
+  long long getInitOrOutBW(DATATYPE dataType, int base,
+                           std::pair<int, int> &PEXRange,
+                           std::pair<int, int> &PEYRange,
+                           long long stableDelay) {
+    return (*_networkGroupSet)[dataType]->getInitOrOutBW(
+        base, _dataWidth, PEXRange, PEYRange, stableDelay);
   }
   int getStableDelay(DATATYPE dataType, int base, std::pair<int, int> &PEXRange,
                      std::pair<int, int> &PEYRange) {
-    return (*_networkGroupSet)[dataType]->getStableDelay(base, _bitWidth,
+    return (*_networkGroupSet)[dataType]->getStableDelay(base, _dataWidth,
                                                          PEXRange, PEYRange);
   }
   bool checkIfStationary(DATATYPE dataType) {
@@ -519,13 +763,15 @@ public:
     return (*_networkGroupSet)[dataType]->checkNetworkReuseValid(reuseVec);
   }
   int getPENum() { return _array->getColNum() * _array->getRowNum(); }
+  int getRowNum() { return _array->getRowNum(); }
+  int getColNum() { return _array->getColNum(); }
   bool checkPEDimRange(std::pair<int, int> &PERange, int flag) {
     if (flag == 0)
       return _array->getRowNum() > PERange.second && PERange.first >= 0;
     else
       return _array->getColNum() > PERange.second && PERange.first >= 0;
   }
-
+  int getDataWidth() { return _dataWidth; }
   int getPEDimRange(int flag) {
     if (flag == 0)
       return _array->getRowNum();
@@ -533,8 +779,8 @@ public:
       return _array->getColNum();
   }
 
-  int getBufferBandWidth(DATATYPE dataType) {
-    return (*_networkGroupSet)[dataType]->getBufferBandWidth();
+  int getNetworkBandWidth(DATATYPE dataType) {
+    return (*_networkGroupSet)[dataType]->getNetworkBandWidth();
   }
   bool checkIfUnlockPEDim(int index, DATATYPE dataType) {
     return (*_networkGroupSet)[dataType]->checkIfUnlockPEDim(index);
@@ -550,6 +796,13 @@ public:
     if (checkIfBufferTotal()) {
       logFile << "\"Total Buffer Size\":\"" +
                      std::to_string((*_bufferSet)[TOTAL]->getCapacity()) +
+                     "\",\n";
+    } else if (checkIfBufferInputALL()) {
+      logFile << "\"ALLINPUT Buffer Size\":\"" +
+                     std::to_string((*_bufferSet)[ALLINPUT]->getCapacity()) +
+                     "\",\n";
+      logFile << "\"OUTPUT Buffer Size\":\"" +
+                     std::to_string((*_bufferSet)[OUTPUT]->getCapacity()) +
                      "\",\n";
     } else {
       logFile << "\"Input Buffer Size\":\"" +

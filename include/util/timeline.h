@@ -1,5 +1,4 @@
 #pragma once
-
 #include "include/datastruct/mapping.h"
 #include "include/datastruct/workload.h"
 #include <algorithm>

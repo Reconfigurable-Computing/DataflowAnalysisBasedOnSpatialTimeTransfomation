@@ -1,4 +1,5 @@
 #include "include/util/timeline.h"
+
 namespace TIMELINE {
 bool timeLineGreater(std::shared_ptr<TimeLine> &t1,
                      std::shared_ptr<TimeLine> &t2) {

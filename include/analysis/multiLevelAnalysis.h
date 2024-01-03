@@ -78,6 +78,8 @@ public:
     return ret;
   }
   void oneAnalysis();
+  void outputCSVArrayName(std::string name, std::ofstream &logFile);
+  void outputCSVArrayDoubleValue(double data[3], std::ofstream &logFile);
   void outputCSV();
   void outputLog(std::ofstream &logFile);
   void constructSearchResult(
@@ -94,4 +96,51 @@ public:
     }
   }
   void getTimeLine(int level) { _analyzerSet[level].getTimeLine(); }
+
+  void getNetworkEnergy(ARCH::DATATYPE dataType) {
+    int levelNum = _analyzerSet.size();
+    for (int i = 0; i < levelNum; i++) {
+
+      ARCH::Level &L = _analyzerSet[i].getLevel();
+      if (L.checkIfSlant(dataType)) {
+        _resultSet[i]->networkEnergy[dataType] = L.getSlantNetworkEnergy(
+            dataType, _resultSet[i]->activateCountMapVec[dataType]);
+      } else {
+        _resultSet[i]->networkEnergy[dataType] = L.getNoSlantNetworkEnergy(
+            dataType, _resultSet[i]->uniqueVolumn[dataType]);
+      }
+    }
+  }
+
+  void getNetworkArea(ARCH::DATATYPE dataType) {
+    int levelNum = _analyzerSet.size();
+    for (int i = 0; i < levelNum; i++) {
+      ARCH::Level &L = _analyzerSet[i].getLevel();
+      if (L.checkIfSlant(dataType)) {
+        _resultSet[i]->networkArea[dataType] =
+            L.getSlantNetworkCost(dataType, 1);
+      } else {
+        _resultSet[i]->networkArea[dataType] =
+            L.getNoSlantNetworkCost(dataType, 1);
+      }
+    }
+  }
+
+  void getNetworkLeakagePower(ARCH::DATATYPE dataType) {
+    int levelNum = _analyzerSet.size();
+    for (int i = 0; i < levelNum; i++) {
+      ARCH::Level &L = _analyzerSet[i].getLevel();
+      if (L.checkIfSlant(dataType)) {
+        _resultSet[i]->networkLeakagePower[dataType] =
+            L.getSlantNetworkCost(dataType, 2);
+      } else {
+        _resultSet[i]->networkLeakagePower[dataType] =
+            L.getNoSlantNetworkCost(dataType, 2);
+      }
+    }
+  }
+
+  void compEnergy();
+  void compArea();
+  void compPower();
 };

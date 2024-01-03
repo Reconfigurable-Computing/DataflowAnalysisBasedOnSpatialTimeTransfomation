@@ -1,4 +1,6 @@
+#include "include/analysis/costAnalysis.h"
 #include "include/analysis/multiLevelAnalysis.h"
+extern COST::COSTDADA _Cost;
 void MultLevelAnalyzer::addLevel(
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec,
     MAPPING::Transform &T, ARCH::Level &L, bool doubleBufferFlag) {
@@ -206,7 +208,7 @@ void MultLevelAnalyzer::compMultiLevelReuslt(
     auto result = _resultSet[i];
     result->compRate = result->compCycle / result->compRate;
     result->PEUtilRate =
-        float(result->activePEMultTimeNum) / result->totalPEMultTimeNum;
+        double(result->activePEMultTimeNum) / result->totalPEMultTimeNum;
     result->totalBandWidth[ARCH::INPUT] =
         _analyzerSet[i].compTotalBandWidth(ARCH::INPUT);
     result->totalBandWidth[ARCH::WEIGHT] =
@@ -238,8 +240,26 @@ void MultLevelAnalyzer::oneAnalysis() {
   auto resultTreeRoot = _analyzerSet[levelNum - 1].getResult();
   resultTreeRoot->occTimes = 1;
   compMultiLevelReuslt(resultTreeRoot);
-
+  compEnergy();
+  compArea();
+  compPower();
   outputCSV();
+}
+
+void MultLevelAnalyzer::outputCSVArrayName(std::string name,
+                                           std::ofstream &logFile) {
+  logFile << name + "_output,";
+  for (int j = 0; j < 2; j++) {
+    logFile << name + "_input_" + std::to_string(j) + ",";
+  }
+}
+
+void MultLevelAnalyzer::outputCSVArrayDoubleValue(double data[3],
+                                                  std::ofstream &logFile) {
+  logFile << std::to_string(data[2]) + ",";
+  for (int j = 0; j < 2; j++) {
+    logFile << std::to_string(data[j]) + ",";
+  }
 }
 
 void MultLevelAnalyzer::outputCSV() {
@@ -258,27 +278,50 @@ void MultLevelAnalyzer::outputCSV() {
     logFile << std::string("total_input_") + std::to_string(j) + ",";
     logFile << std::string("reuseRate_input_") + std::to_string(j) + ",";
   }
-  logFile << "bufferSize_output,";
-  for (int j = 0; j < 2; j++) {
-    logFile << std::string("bufferSize_input_") + std::to_string(j) + ",";
-  }
-  logFile << "totalBandWidth_output,";
-  for (int j = 0; j < 2; j++) {
-    logFile << std::string("totalBandWidth_input_") + std::to_string(j) + ",";
-  }
-  logFile << "maxInitDelay_output,";
-  for (int j = 0; j < 2; j++) {
-    logFile << std::string("maxInitDelay_input_") + std::to_string(j) + ",";
-  }
+  outputCSVArrayName("bufferSize", logFile);
+  outputCSVArrayName("requiredBandwidth", logFile);
+  outputCSVArrayName("totalBandWidth", logFile);
+  outputCSVArrayName("maxInitDela", logFile);
+
   logFile << "maxInitTimes,";
-  logFile << "maxStableDelay_output,";
-  for (int j = 0; j < 2; j++) {
-    logFile << std::string("maxStableDelay_input_") + std::to_string(j) + ",";
-  }
+  outputCSVArrayName("maxStableDelay", logFile);
+
   logFile << std::string("maxStableCompDelay") + ",";
   logFile << std::string("delay") + ",";
   logFile << std::string("compCycleRate") + ",";
-  logFile << "PEUtilRate" << std::endl;
+  // logFile << "PEUtilRate" << std::endl;
+  logFile << std::string("PEUtilRate") + ",";
+
+  logFile << std::string("activePETimeCount") + ",";
+
+  outputCSVArrayName("toSubVolumn", logFile);
+  outputCSVArrayName("bufferSubAccessEnergy", logFile);
+  outputCSVArrayName("bufferUpAccessEnergy", logFile);
+
+  logFile << std::string("macEnergy") + ",";
+
+  outputCSVArrayName("networkEnergy", logFile);
+
+  logFile << std::string("innerMostRegWriteEnergy") + ",";
+  logFile << std::string("innerMostRegReadEnergy") + ",";
+
+  logFile << std::string("accumulateEnergy") + ",";
+
+  outputCSVArrayName("bufferArea", logFile);
+  outputCSVArrayName("networkArea", logFile);
+  logFile << std::string("macArea") + ",";
+  logFile << std::string("innerMostRegArea") + ",";
+
+  logFile << std::string("accumulateArea") + ",";
+
+  outputCSVArrayName("bufferLeakagePower", logFile);
+  outputCSVArrayName("networkLeakagePower", logFile);
+
+  logFile << std::string("macLeakagePower") + ",";
+  logFile << std::string("innerMostRegLeakagePower") + ",";
+
+  logFile << std::string("accumulateLeakagePower") << std::endl;
+
   for (int i = 0; i < levelNum; i++) {
     logFile << std::to_string(i) + ',';
     logFile << std::to_string(_resultSet[i]->uniqueVolumn[2]) + ",";
@@ -299,6 +342,10 @@ void MultLevelAnalyzer::outputCSV() {
     for (int j = 0; j < 2; j++) {
       logFile << std::to_string(_resultSet[i]->requiredDataSize[j]) + ",";
     }
+    logFile << std::to_string(_resultSet[i]->requiredBandWidth[2]) + ",";
+    for (int j = 0; j < 2; j++) {
+      logFile << std::to_string(_resultSet[i]->requiredBandWidth[j]) + ",";
+    }
     logFile << std::to_string(_resultSet[i]->totalBandWidth[2]) + ",";
     for (int j = 0; j < 2; j++) {
       logFile << std::to_string(_resultSet[i]->totalBandWidth[j]) + ",";
@@ -315,8 +362,37 @@ void MultLevelAnalyzer::outputCSV() {
     logFile << std::to_string(_resultSet[i]->stableDelay[3]) + ",";
     logFile << std::to_string(_resultSet[i]->delay) + ",";
     logFile << std::to_string(_resultSet[i]->compRate) + ",";
-    logFile << std::to_string(_resultSet[i]->PEUtilRate) << std::endl;
-    // std::cout << _resultSet[i]->delay << std::endl;
+    // logFile << std::to_string(_resultSet[i]->PEUtilRate) << std::endl;
+    logFile << std::to_string(_resultSet[i]->PEUtilRate) + ",";
+    if (i == 0)
+      logFile << std::to_string(_resultSet[i]->totalPEMultTimeNum) + ",";
+    else
+      logFile << std::to_string(0) + ",";
+
+    logFile << std::to_string(_resultSet[i]->toSubVolumn[2]) + ",";
+    for (int j = 0; j < 2; j++) {
+      logFile << std::to_string(_resultSet[i]->toSubVolumn[j]) + ",";
+    }
+    outputCSVArrayDoubleValue(_resultSet[i]->bufferSubAccessEnergy, logFile);
+    outputCSVArrayDoubleValue(_resultSet[i]->bufferUpAccessEnergy, logFile);
+    logFile << std::to_string(_resultSet[i]->macEnergy) + ",";
+    outputCSVArrayDoubleValue(_resultSet[i]->networkEnergy, logFile);
+    logFile << std::to_string(_resultSet[i]->innerMostRegWriteEnergy) + ",";
+    logFile << std::to_string(_resultSet[i]->innerMostRegReadEnergy) + ",";
+    logFile << std::to_string(_resultSet[i]->accumulateEnergy) + ",";
+
+    outputCSVArrayDoubleValue(_resultSet[i]->bufferArea, logFile);
+    outputCSVArrayDoubleValue(_resultSet[i]->networkArea, logFile);
+    logFile << std::to_string(_resultSet[i]->macArea) + ",";
+    logFile << std::to_string(_resultSet[i]->innerMostRegArea) + ",";
+    logFile << std::to_string(_resultSet[i]->accumulateArea) + ",";
+
+    outputCSVArrayDoubleValue(_resultSet[i]->bufferLeakagePower, logFile);
+    outputCSVArrayDoubleValue(_resultSet[i]->networkLeakagePower, logFile);
+    logFile << std::to_string(_resultSet[i]->macLeakagePower) + ",";
+    logFile << std::to_string(_resultSet[i]->innerMostRegLeakagePower) + ",";
+    logFile << std::to_string(_resultSet[i]->accumulateLeakagePower)
+            << std::endl;
   }
   logFile.close();
 }
@@ -330,5 +406,218 @@ void MultLevelAnalyzer::outputLog(std::ofstream &logFile) {
     _analyzerSet[i].outputConfig(logFile);
     _resultSet[i]->outputLog(logFile);
     logFile << "}";
+  }
+}
+
+void MultLevelAnalyzer::compEnergy() {
+  // long long totalCycle = _resultSet[level]->delay;
+  int levelNum = _analyzerSet.size();
+  // ARCH::Level& _L = _analyzerSet[level].getLevel();
+
+  // for curlevel and the innermost regfile(if has), so levelNum + 1
+  std::vector<std::vector<long long>> bufferReadAccessCount(
+      3, std::vector<long long>(levelNum + 1, 0));
+  std::vector<std::vector<long long>> bufferWriteAccessCount(
+      3, std::vector<long long>(levelNum + 1, 0));
+
+  for (int i = 0; i < levelNum; i++) {
+    bufferReadAccessCount[ARCH::INPUT][i + 1] =
+        _resultSet[i]->uniqueVolumn[ARCH::INPUT];
+    bufferWriteAccessCount[ARCH::INPUT][i] =
+        _resultSet[i]->toSubVolumn[ARCH::INPUT];
+    bufferReadAccessCount[ARCH::WEIGHT][i + 1] =
+        _resultSet[i]->uniqueVolumn[ARCH::WEIGHT];
+    bufferWriteAccessCount[ARCH::WEIGHT][i] =
+        _resultSet[i]->toSubVolumn[ARCH::WEIGHT];
+    bufferWriteAccessCount[ARCH::OUTPUT][i + 1] =
+        _resultSet[i]->uniqueVolumn[ARCH::OUTPUT];
+    bufferReadAccessCount[ARCH::OUTPUT][i] =
+        _resultSet[i]->toSubVolumn[ARCH::OUTPUT];
+  }
+
+  // for buffer
+  for (int i = 0; i < levelNum; i++) {
+    ARCH::Level &L = _analyzerSet[i].getLevel();
+    _resultSet[i]->bufferSubAccessEnergy[ARCH::INPUT] =
+        L.getBufferReadWriteEnergy(
+            ARCH::INPUT, bufferReadAccessCount[ARCH::INPUT][i + 1], 0);
+    _resultSet[i]->bufferUpAccessEnergy[ARCH::INPUT] =
+        L.getBufferReadWriteEnergy(
+            ARCH::INPUT, bufferWriteAccessCount[ARCH::INPUT][i + 1], 1);
+
+    _resultSet[i]->bufferSubAccessEnergy[ARCH::WEIGHT] =
+        L.getBufferReadWriteEnergy(
+            ARCH::WEIGHT, bufferReadAccessCount[ARCH::WEIGHT][i + 1], 0);
+    _resultSet[i]->bufferUpAccessEnergy[ARCH::WEIGHT] =
+        L.getBufferReadWriteEnergy(
+            ARCH::WEIGHT, bufferWriteAccessCount[ARCH::WEIGHT][i + 1], 1);
+
+    _resultSet[i]->bufferSubAccessEnergy[ARCH::OUTPUT] =
+        L.getBufferReadWriteEnergy(
+            ARCH::OUTPUT, bufferWriteAccessCount[ARCH::OUTPUT][i + 1], 1);
+    _resultSet[i]->bufferUpAccessEnergy[ARCH::OUTPUT] =
+        L.getBufferReadWriteEnergy(
+            ARCH::OUTPUT, bufferReadAccessCount[ARCH::OUTPUT][i + 1], 0);
+  }
+
+  // for network
+  getNetworkEnergy(ARCH::INPUT);
+  getNetworkEnergy(ARCH::WEIGHT);
+  getNetworkEnergy(ARCH::OUTPUT);
+
+  ARCH::Level &L0 = _analyzerSet[0].getLevel();
+
+  // for inner reg
+  if (!L0.isPE()) {
+    _resultSet[0]->innerMostRegWriteEnergy =
+        _Cost._regData.lookup(1, 1) * L0.getDataWidth() / 8 *
+        (bufferWriteAccessCount[ARCH::INPUT][0] +
+         bufferWriteAccessCount[ARCH::WEIGHT][0] +
+         bufferWriteAccessCount[ARCH::OUTPUT][0] +
+         _resultSet[0]->activePEMultTimeNum);
+    _resultSet[0]->innerMostRegReadEnergy =
+        _Cost._regData.lookup(1, 0) * L0.getDataWidth() / 8 *
+        (bufferReadAccessCount[ARCH::INPUT][0] +
+         bufferReadAccessCount[ARCH::WEIGHT][0] +
+         bufferReadAccessCount[ARCH::OUTPUT][0] +
+         2 * _resultSet[0]->activePEMultTimeNum);
+  }
+
+  // for mac
+  _resultSet[0]->macEnergy =
+      L0.getMacEnergy(_resultSet[0]->activePEMultTimeNum);
+
+  for (int i = 0; i < levelNum; i++) {
+    if (i == 0) {
+      _resultSet[i]->accumulateEnergy =
+          _resultSet[i]->bufferSubAccessEnergy[ARCH::OUTPUT] +
+          _resultSet[i]->bufferUpAccessEnergy[ARCH::OUTPUT] +
+          _resultSet[i]->bufferSubAccessEnergy[ARCH::INPUT] +
+          _resultSet[i]->bufferUpAccessEnergy[ARCH::INPUT] +
+          _resultSet[i]->bufferSubAccessEnergy[ARCH::WEIGHT] +
+          _resultSet[i]->bufferUpAccessEnergy[ARCH::WEIGHT] +
+          _resultSet[i]->networkEnergy[ARCH::INPUT] +
+          _resultSet[i]->networkEnergy[ARCH::WEIGHT] +
+          _resultSet[i]->networkEnergy[ARCH::OUTPUT] +
+          _resultSet[i]->innerMostRegReadEnergy +
+          _resultSet[i]->innerMostRegReadEnergy + _resultSet[i]->macEnergy;
+    } else {
+      _resultSet[i]->accumulateEnergy =
+          _resultSet[i]->bufferSubAccessEnergy[ARCH::OUTPUT] +
+          _resultSet[i]->bufferUpAccessEnergy[ARCH::OUTPUT] +
+          _resultSet[i]->bufferSubAccessEnergy[ARCH::INPUT] +
+          _resultSet[i]->bufferUpAccessEnergy[ARCH::INPUT] +
+          _resultSet[i]->bufferSubAccessEnergy[ARCH::WEIGHT] +
+          _resultSet[i]->bufferUpAccessEnergy[ARCH::WEIGHT] +
+          _resultSet[i]->networkEnergy[ARCH::INPUT] +
+          _resultSet[i]->networkEnergy[ARCH::WEIGHT] +
+          _resultSet[i]->networkEnergy[ARCH::OUTPUT] +
+          _resultSet[i - 1]->accumulateEnergy;
+    }
+  }
+}
+
+void MultLevelAnalyzer::compArea() {
+  int levelNum = _analyzerSet.size();
+  for (int i = 0; i < levelNum; i++) {
+    ARCH::Level &L = _analyzerSet[i].getLevel();
+    _resultSet[i]->bufferArea[ARCH::INPUT] =
+        L.getBufferAreaAndLeakagePower(ARCH::INPUT, 2);
+    _resultSet[i]->bufferArea[ARCH::WEIGHT] =
+        L.getBufferAreaAndLeakagePower(ARCH::WEIGHT, 2);
+    _resultSet[i]->bufferArea[ARCH::OUTPUT] =
+        L.getBufferAreaAndLeakagePower(ARCH::OUTPUT, 2);
+  }
+
+  getNetworkArea(ARCH::INPUT);
+  getNetworkArea(ARCH::WEIGHT);
+  getNetworkArea(ARCH::OUTPUT);
+
+  ARCH::Level &L0 = _analyzerSet[0].getLevel();
+  _resultSet[0]->macArea = L0.getMacCost(1);
+
+  // for inner reg
+  if (!L0.isPE()) {
+    _resultSet[0]->innerMostRegArea = _Cost._regData.lookup(1, 2) *
+                                      L0.getDataWidth() / 8 * L0.getRowNum() *
+                                      L0.getColNum() * 3;
+  }
+
+  for (int i = 0; i < levelNum; i++) {
+
+    if (i == 0) {
+      _resultSet[i]->accumulateArea = _resultSet[i]->bufferArea[ARCH::INPUT] +
+                                      _resultSet[i]->bufferArea[ARCH::OUTPUT] +
+                                      _resultSet[i]->bufferArea[ARCH::WEIGHT] +
+                                      _resultSet[i]->networkArea[ARCH::INPUT] +
+                                      _resultSet[i]->networkArea[ARCH::OUTPUT] +
+                                      _resultSet[i]->networkArea[ARCH::WEIGHT] +
+                                      _resultSet[i]->macArea +
+                                      _resultSet[i]->innerMostRegArea;
+    } else {
+      ARCH::Level &L = _analyzerSet[i].getLevel();
+      _resultSet[i]->accumulateArea =
+          _resultSet[i]->bufferArea[ARCH::INPUT] +
+          _resultSet[i]->bufferArea[ARCH::OUTPUT] +
+          _resultSet[i]->bufferArea[ARCH::WEIGHT] +
+          _resultSet[i]->networkArea[ARCH::INPUT] +
+          _resultSet[i]->networkArea[ARCH::OUTPUT] +
+          _resultSet[i]->networkArea[ARCH::WEIGHT] + _resultSet[i]->macArea +
+          _resultSet[i - 1]->accumulateArea * L.getRowNum() * L.getColNum();
+    }
+  }
+}
+
+void MultLevelAnalyzer::compPower() {
+  int levelNum = _analyzerSet.size();
+  for (int i = 0; i < levelNum; i++) {
+    ARCH::Level &L = _analyzerSet[i].getLevel();
+    _resultSet[i]->bufferLeakagePower[ARCH::INPUT] =
+        L.getBufferAreaAndLeakagePower(ARCH::INPUT, 3);
+    _resultSet[i]->bufferLeakagePower[ARCH::WEIGHT] =
+        L.getBufferAreaAndLeakagePower(ARCH::WEIGHT, 3);
+    _resultSet[i]->bufferLeakagePower[ARCH::OUTPUT] =
+        L.getBufferAreaAndLeakagePower(ARCH::OUTPUT, 3);
+  }
+
+  getNetworkLeakagePower(ARCH::INPUT);
+  getNetworkLeakagePower(ARCH::WEIGHT);
+  getNetworkLeakagePower(ARCH::OUTPUT);
+
+  ARCH::Level &L0 = _analyzerSet[0].getLevel();
+  _resultSet[0]->macLeakagePower = L0.getMacCost(2);
+
+  // for inner reg
+  if (!L0.isPE()) {
+    _resultSet[0]->innerMostRegLeakagePower =
+        _Cost._regData.lookup(1, 3) * L0.getDataWidth() / 8 * L0.getRowNum() *
+        L0.getColNum() * 3;
+  }
+
+  for (int i = 0; i < levelNum; i++) {
+
+    if (i == 0) {
+      _resultSet[i]->accumulateLeakagePower =
+          _resultSet[i]->bufferLeakagePower[ARCH::INPUT] +
+          _resultSet[i]->bufferLeakagePower[ARCH::OUTPUT] +
+          _resultSet[i]->bufferLeakagePower[ARCH::WEIGHT] +
+          _resultSet[i]->networkLeakagePower[ARCH::INPUT] +
+          _resultSet[i]->networkLeakagePower[ARCH::OUTPUT] +
+          _resultSet[i]->networkLeakagePower[ARCH::WEIGHT] +
+          _resultSet[i]->macLeakagePower +
+          _resultSet[i]->innerMostRegLeakagePower;
+    } else {
+      ARCH::Level &L = _analyzerSet[i].getLevel();
+      _resultSet[i]->accumulateLeakagePower =
+          _resultSet[i]->bufferLeakagePower[ARCH::INPUT] +
+          _resultSet[i]->bufferLeakagePower[ARCH::OUTPUT] +
+          _resultSet[i]->bufferLeakagePower[ARCH::WEIGHT] +
+          _resultSet[i]->networkLeakagePower[ARCH::INPUT] +
+          _resultSet[i]->networkLeakagePower[ARCH::OUTPUT] +
+          _resultSet[i]->networkLeakagePower[ARCH::WEIGHT] +
+          _resultSet[i]->macLeakagePower +
+          _resultSet[i - 1]->accumulateLeakagePower * L.getRowNum() *
+              L.getColNum();
+    }
   }
 }

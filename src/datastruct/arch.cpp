@@ -1,4 +1,6 @@
+#include "include/analysis/costAnalysis.h"
 #include "include/datastruct/arch.h"
+extern COST::COSTDADA _Cost;
 namespace ARCH {
 void Network::constructNetwork(
     int rowNum, int colNum,
@@ -98,17 +100,16 @@ void Network::constructNetwork(
     }
   }
 }
-int NetworkGroup::getInitOrOutDelay(
-    int base, int bitWidth, std::pair<int, int> &PEXRange,
-    std::pair<int, int> &PEYRange) // for input and weight
-{
+int NetworkGroup::getInitOrOutDelay(int base, int dataWidth,
+                                    std::pair<int, int> &PEXRange,
+                                    std::pair<int, int> &PEYRange) {
   if (_peFlag) {
     return 0;
   } else if (_networkSet->size() == 1) {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     // MULTICAST UNICAST SYSTOLIC
     return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
-                    bitWidth);
+                    dataWidth);
   } else {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
@@ -116,30 +117,85 @@ int NetworkGroup::getInitOrOutDelay(
       // STATIONARY - SYSTOLIC UNICAST
       if (networkType2 == SYSTOLIC) {
         return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
-                        bitWidth) *
+                        dataWidth) *
                (*_networkSet)[1]->getMaxCoupleNum(PEXRange, PEYRange);
       } else // UNICAST
       {
         return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
-                        bitWidth);
+                        dataWidth);
       }
     } else if (networkType2 == STATIONARY) {
       if (networkType1 == SYSTOLIC) {
         return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
-                        bitWidth) *
+                        dataWidth) *
                (*_networkSet)[0]->getMaxCoupleNum(PEXRange, PEYRange);
       } else // MULTICAST
       {
         return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
-                        bitWidth);
+                        dataWidth);
       }
     } else {
       return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
-                      bitWidth);
+                      dataWidth);
     }
   }
 }
-int NetworkGroup::getStableDelay(int base, int bitWidth,
+long long NetworkGroup::getInitOrOutBW(int base, int dataWidth,
+                                       std::pair<int, int> &PEXRange,
+                                       std::pair<int, int> &PEYRange,
+                                       long long stableDelay) {
+  if (_peFlag) {
+    return 0;
+  } else if (_networkSet->size() == 1) {
+    NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
+    // MULTICAST UNICAST SYSTOLIC
+    return std::ceil(
+        (double)((long long)base * getActiveAccessPointNum(PEXRange, PEYRange) *
+                 dataWidth) /
+        (double)(stableDelay));
+  } else {
+    NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
+    NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
+    if (networkType1 == STATIONARY || networkType1 == UNICAST) {
+      // STATIONARY - SYSTOLIC UNICAST
+      if (networkType2 == SYSTOLIC) {
+        return std::ceil(
+            (double)((long long)base *
+                     getActiveAccessPointNum(PEXRange, PEYRange) *
+                     (*_networkSet)[1]->getMaxCoupleNum(PEXRange, PEYRange) *
+                     dataWidth) /
+            (double)(stableDelay));
+      } else // UNICAST
+      {
+        return std::ceil((double)((long long)base *
+                                  getActiveAccessPointNum(PEXRange, PEYRange) *
+                                  dataWidth) /
+                         (double)(stableDelay));
+      }
+    } else if (networkType2 == STATIONARY) {
+      if (networkType1 == SYSTOLIC) {
+        return std::ceil(
+            (double)((long long)base *
+                     getActiveAccessPointNum(PEXRange, PEYRange) *
+                     (*_networkSet)[1]->getMaxCoupleNum(PEXRange, PEYRange) *
+                     dataWidth) /
+            (double)(stableDelay));
+      } else // MULTICAST
+      {
+        return std::ceil((double)((long long)base *
+                                  getActiveAccessPointNum(PEXRange, PEYRange) *
+                                  dataWidth) /
+                         (double)(stableDelay));
+      }
+    } else {
+      return std::ceil((double)((long long)base *
+                                getActiveAccessPointNum(PEXRange, PEYRange) *
+                                dataWidth) /
+                       (double)(stableDelay));
+    }
+  }
+}
+int NetworkGroup::getStableDelay(int base, int dataWidth,
                                  std::pair<int, int> &PEXRange,
                                  std::pair<int, int> &PEYRange) {
   if (_peFlag) {
@@ -148,7 +204,7 @@ int NetworkGroup::getStableDelay(int base, int bitWidth,
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     // MULTICAST UNICAST SYSTOLIC
     return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
-                    bitWidth);
+                    dataWidth);
   } else {
     NETWORKTYPE networkType1 = (*_networkSet)[0]->getNetworkType();
     NETWORKTYPE networkType2 = (*_networkSet)[1]->getNetworkType();
@@ -156,10 +212,10 @@ int NetworkGroup::getStableDelay(int base, int bitWidth,
       return 0;
     } else if (networkType1 == UNICAST) {
       return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
-                      bitWidth);
+                      dataWidth);
     } else {
       return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
-                      bitWidth);
+                      dataWidth);
     }
   }
 }
@@ -256,5 +312,42 @@ int Network::getActiveAccessPointNum(std::pair<int, int> &PEXRange,
     }
     return ret;
   }
+}
+double getNetworkCost(ARCH::DATATYPE dataType, ARCH::NETWORKTYPE networkType,
+                      int linkNum, int flag, int dataWidth) {
+  if (networkType == ARCH::UNICAST) {
+    if (dataType == ARCH::INPUT || ARCH::WEIGHT)
+      return _Cost._unicastInput.lookup(dataWidth, linkNum, flag);
+    else
+      return _Cost._unicastOutput.lookup(dataWidth, linkNum, flag);
+  } else if (networkType == ARCH::MULTICAST) {
+    if (dataType == ARCH::INPUT || ARCH::WEIGHT)
+      return _Cost._multicastInput.lookup(dataWidth, linkNum, flag);
+    else
+      return _Cost._multicastOutput.lookup(dataWidth, linkNum, flag);
+  } else {
+    assert(networkType == ARCH::SYSTOLIC);
+    if (dataType == ARCH::INPUT || ARCH::WEIGHT)
+      return _Cost._systolicInput.lookup(dataWidth, linkNum, flag);
+    else
+      return _Cost._systolicOutput.lookup(dataWidth, linkNum, flag);
+  }
+}
+double Buffer::getBufferCost(int flag, int bankNum, int dataWidthRatio) {
+  double ret;
+  if (_bufferType == REG) {
+    ret = _Cost._regData.lookup((_capacity + bankNum - 1) / bankNum, flag);
+  } else {
+    ret = _Cost._sramData.lookup((_capacity + bankNum - 1) / bankNum, flag);
+  }
+  ret *= dataWidthRatio;
+  if (flag == 0 || flag == 1) { // for per energy
+    return ret;
+  } else { // for area and leakage power
+    return bankNum * ret;
+  }
+}
+double Level::getMacCost(int flag, int rowNum, int colNum) {
+  return _Cost._mac.lookup(_dataWidth, 1, flag) * rowNum * colNum;
 }
 } // namespace ARCH

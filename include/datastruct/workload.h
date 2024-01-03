@@ -62,6 +62,10 @@ public:
     _lowBound = lowBound;
     _upBound = upBound;
   }
+  void setBound(int range) {
+    _lowBound = 0;
+    _upBound = range - 1;
+  }
 
   std::string &getSym() { return _sym; }
   int getLowBound() {
@@ -247,18 +251,22 @@ public:
                      std::shared_ptr<WORKLOAD::Iterator> outer,
                      std::shared_ptr<WORKLOAD::Iterator> inner, int tileSize) {
     bool flag = false;
+    int coef = 1;
     std::shared_ptr<std::vector<std::shared_ptr<Monomial>>> _newMonomialSet =
         std::make_shared<std::vector<std::shared_ptr<Monomial>>>();
     for (auto &m : (*_monomialSet)) {
       if (m->getVar() != oriIterator)
         _newMonomialSet->push_back(m);
-      else
+      else {
         flag = true;
+        coef = m->getCoef();
+      }
     }
     if (flag) {
-      std::shared_ptr<Monomial> innerM = std::make_shared<Monomial>(inner, 1);
+      std::shared_ptr<Monomial> innerM =
+          std::make_shared<Monomial>(inner, coef);
       std::shared_ptr<Monomial> outerM =
-          std::make_shared<Monomial>(outer, tileSize);
+          std::make_shared<Monomial>(outer, coef * tileSize);
       _newMonomialSet->push_back(innerM);
       _newMonomialSet->push_back(outerM);
       _monomialSet = _newMonomialSet;

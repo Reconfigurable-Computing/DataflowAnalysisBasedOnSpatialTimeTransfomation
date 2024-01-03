@@ -1,6 +1,7 @@
-INCLUDE := -I $(shell pwd) -I /usr/include -g
-main:main.o workload.o arch.o mapping.o eigenUtil.o debug.o singleLevelAnalysis.o multiLevelAnalysis.o transformSearchEngine.o timeline.o
-	g++ main.o workload.o arch.o mapping.o eigenUtil.o debug.o singleLevelAnalysis.o multiLevelAnalysis.o transformSearchEngine.o timeline.o -o main ${INCLUDE} 
+INCLUDE := -I $(shell pwd) -I /usr/include -g -lpthread
+
+main:main.o workload.o arch.o mapping.o eigenUtil.o debug.o singleLevelAnalysis.o multiLevelAnalysis.o transformSearchEngine.o timeline.o groupSearchEngine.o costAnalysis.o
+	g++ main.o workload.o arch.o mapping.o eigenUtil.o debug.o singleLevelAnalysis.o multiLevelAnalysis.o transformSearchEngine.o timeline.o groupSearchEngine.o costAnalysis.o -o main ${INCLUDE} 
 	rm -r ./*.o
 transformSearchEngine.o:src/searchEngine/transformSearchEngine.cpp
 	g++ -c src/searchEngine/transformSearchEngine.cpp ${INCLUDE}
@@ -20,6 +21,10 @@ multiLevelAnalysis.o: src/analysis/multiLevelAnalysis.cpp
 	g++ -c src/analysis/multiLevelAnalysis.cpp ${INCLUDE}
 timeline.o:src/util/timeline.cpp
 	g++ -c src/util/timeline.cpp ${INCLUDE}
+groupSearchEngine.o:src/searchEngine/groupSearchEngine.cpp
+	g++ -c src/searchEngine/groupSearchEngine.cpp ${INCLUDE}
+costAnalysis.o:src/analysis/costAnalysis.cpp
+	g++ -c src/analysis/costAnalysis.cpp ${INCLUDE}
 main.o:main.cpp
 	g++ -c main.cpp ${INCLUDE}
 .PHONY:clean

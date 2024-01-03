@@ -37,6 +37,7 @@ private:
   std::shared_ptr<WORKLOAD::Iterator> PEY;
   std::shared_ptr<WORKLOAD::Iterator> INNERTIME;
   bool _doubleBufferFlag;
+  bool _stationaryDoubleBufferFlag;
   long long _requiredDataSize[3];
   std::vector<std::vector<long long>> _tensorDimRange;
   std::vector<Base> _baseSet;
@@ -51,7 +52,8 @@ private:
                                       ARCH::DATATYPE dataType);
   void constructInnerOuterTimeVec(std::vector<int> &innerTimeVec,
                                   std::vector<int> &outerTimeVec);
-  int compOneStateTimeSize(std::vector<int> &timeVec);
+  long long compOneStateTimeSize(std::vector<int> &timeVec);
+  long long compOneStateTimeSizeDelay(std::vector<int> &innerTimeVec);
   void generateVarVec(std::vector<int> &timeVec,
                       std::vector<std::shared_ptr<WORKLOAD::Iterator>> &varVec);
   void compOneDataVolumn(ARCH::DATATYPE dataType, MAPPING::Access &access,
@@ -61,7 +63,8 @@ private:
                        int coef);
   int compOneStateStableDelay();
   long long compOneStateInitDelay(std::pair<int, int> &PEXRange,
-                                  std::pair<int, int> &PEYRange);
+                                  std::pair<int, int> &PEYRange,
+                                  int stableDelay);
   void compOneStateDelay(std::vector<int> &innerTimeVec, long long &delay,
                          long long &compCycle, long long &initDelay,
                          long long &activePEMultTimeNum);
@@ -72,9 +75,12 @@ private:
   void setEdge(std::shared_ptr<WORKLOAD::Iterator> curI);
   void unsetEdge(std::shared_ptr<WORKLOAD::Iterator> curI);
   void changeBase();
-  void compOneStateVolumn(long long &uniqueVolumn, long long &totalVolumn,
-                          std::vector<int> &innerTimeVec,
-                          ARCH::DATATYPE dataType, WORKLOAD::Tensor &curTensor);
+  void
+  compOneStateVolumn(long long &uniqueVolumn, long long &totalVolumn,
+                     long long &toSubVolumn, std::vector<int> &innerTimeVec,
+                     ARCH::DATATYPE dataType, WORKLOAD::Tensor &curTensor,
+                     std::shared_ptr<std::map<std::pair<int, int>, long long>>
+                         activateCountMap);
   void
   changeEdgeByState(bool flag, int varNum, int i,
                     std::vector<std::vector<int>> &state,
@@ -91,6 +97,8 @@ public:
       _requiredDataSize[0] = 0;
     reset();
   }
+  ARCH::Level &getLevel() { return _L; }
+
   void buildAnalyzer() {
     if (!_accessI.isScalar())
       _reuseVecI = compReuseVec(_T, _accessI);
@@ -163,6 +171,7 @@ public:
         }
       }
       _coupledVarVec.push_back(outer);
+      //_coupledVarVec.insert(_coupledVarVec.begin() + 2, outer);
       _T.addExtraTemporal();
       // change Tensor
       _I.splitIterator(PEIterator, outer, inner, peRange);

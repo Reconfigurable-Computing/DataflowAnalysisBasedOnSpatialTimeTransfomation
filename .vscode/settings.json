@@ -54,7 +54,11 @@
         "workload": "cpp",
         "list": "cpp",
         "set": "cpp",
-        "climits": "cpp"
+        "climits": "cpp",
+        "thread": "cpp",
+        "ctime": "cpp",
+        "chrono": "cpp",
+        "ratio": "cpp"
     },
     "files.watcherExclude": {
         "**/target": true
