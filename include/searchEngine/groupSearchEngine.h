@@ -17,9 +17,10 @@ class GroupSearchEngine {
   std::vector<int> _spatialNumVec;
   std::vector<ARCH::Level> _LVec;
   bool _firstFlag;
-  std::vector<std::shared_ptr<GroupSearchResult>> _groupSearchResult;
 
 public:
+  std::vector<std::shared_ptr<GroupSearchResult>> _groupSearchResult;
+
   static long long totalCount;
   GroupSearchEngine(WORKLOAD::Tensor &I, WORKLOAD::Tensor &W,
                     WORKLOAD::Tensor &O,

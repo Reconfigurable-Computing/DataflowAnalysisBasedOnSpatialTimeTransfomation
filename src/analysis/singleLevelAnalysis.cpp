@@ -51,6 +51,14 @@ void Analyzer::oneAnalysis() {
       changeEdgeByState(0, varNum, i, state, outerVarVec);
     }
   }
+  if (_L.checkIfNetworkExtended()) {
+    _tensorDimRange = std::vector<std::vector<long long>>(3);
+    _tensorDimRange[ARCH::INPUT].push_back(_result->uniqueVolumn[ARCH::INPUT]);
+    _tensorDimRange[ARCH::WEIGHT].push_back(
+        _result->uniqueVolumn[ARCH::WEIGHT]);
+    _tensorDimRange[ARCH::OUTPUT].push_back(
+        _result->uniqueVolumn[ARCH::OUTPUT]);
+  }
 }
 
 void Analyzer::delayAnalysis(std::vector<int> &innerTimeVec,
@@ -81,11 +89,11 @@ void Analyzer::delayAnalysis(std::vector<int> &innerTimeVec,
   }
   if (_doubleBufferFlag) {
     //_result->delay += ((long long)outerTimeSize - 1) * std::max(delay,
-    // initDelay) + initDelay + delay; _result->compCycle += (long
-    // long)outerTimeSize * compCycle; _result->activePEMultTimeNum += (long
-    // long)outerTimeSize * activePEMultTimeNum; _result->totalPEMultTimeNum +=
+    //initDelay) + initDelay + delay; _result->compCycle += (long
+    //long)outerTimeSize * compCycle; _result->activePEMultTimeNum += (long
+    //long)outerTimeSize * activePEMultTimeNum; _result->totalPEMultTimeNum +=
     //(((long long)outerTimeSize - 1) * std::max(delay, initDelay) + initDelay +
-    // delay) * _L.getPENum(); _result->initTimes += outerTimeSize;
+    //delay) * _L.getPENum(); _result->initTimes += outerTimeSize;
     _result->delay += ((long long)outerTimeSize) * std::max(delay, initDelay);
     _result->compCycle += (long long)outerTimeSize * compCycle;
     _result->activePEMultTimeNum +=
@@ -126,20 +134,32 @@ int Analyzer::compStableVolumn(ARCH::DATATYPE dataType,
 }
 
 int Analyzer::compOneStateStableDelay() {
-  int innerCoupledDimIndexInput = _I.getCoupledDimIndex(INNERTIME);
-  int coefInput = _I.getCoupledDimCoef(INNERTIME, innerCoupledDimIndexInput);
-  int innerCoupledDimIndexWeight = _W.getCoupledDimIndex(INNERTIME);
-  int coefWeight = _W.getCoupledDimCoef(INNERTIME, innerCoupledDimIndexWeight);
-  int innerCoupledDimIndexOutput = _O.getCoupledDimIndex(INNERTIME);
-  int coefOutput = _O.getCoupledDimCoef(INNERTIME, innerCoupledDimIndexOutput);
+  long long inputStableVolumn = 0;
+  long long weightStableVolumn = 0;
+  long long outputStableVolumn = 0;
+  if (!_subNetworkExtended) {
+    int innerCoupledDimIndexInput = _I.getCoupledDimIndex(INNERTIME);
+    int coefInput = _I.getCoupledDimCoef(INNERTIME, innerCoupledDimIndexInput);
+    int innerCoupledDimIndexWeight = _W.getCoupledDimIndex(INNERTIME);
+    int coefWeight =
+        _W.getCoupledDimCoef(INNERTIME, innerCoupledDimIndexWeight);
+    int innerCoupledDimIndexOutput = _O.getCoupledDimIndex(INNERTIME);
+    int coefOutput =
+        _O.getCoupledDimCoef(INNERTIME, innerCoupledDimIndexOutput);
+    inputStableVolumn =
+        compStableVolumn(ARCH::INPUT, innerCoupledDimIndexInput, coefInput);
+    weightStableVolumn =
+        compStableVolumn(ARCH::WEIGHT, innerCoupledDimIndexWeight, coefWeight);
+    outputStableVolumn =
+        compStableVolumn(ARCH::OUTPUT, innerCoupledDimIndexOutput, coefOutput);
+  } else {
+    inputStableVolumn = _baseSet[_curBaseIndex].baseData[ARCH::INPUT][0];
+    weightStableVolumn = _baseSet[_curBaseIndex].baseData[ARCH::WEIGHT][0];
+    outputStableVolumn = _baseSet[_curBaseIndex].baseData[ARCH::OUTPUT][0];
+  }
   std::pair<int, int> PEXRange = compTRange(0);
   std::pair<int, int> PEYRange = compTRange(1);
-  long long inputStableVolumn =
-      compStableVolumn(ARCH::INPUT, innerCoupledDimIndexInput, coefInput);
-  long long weightStableVolumn =
-      compStableVolumn(ARCH::WEIGHT, innerCoupledDimIndexWeight, coefWeight);
-  long long outputStableVolumn =
-      compStableVolumn(ARCH::OUTPUT, innerCoupledDimIndexOutput, coefOutput);
+
   long long inputStableDelay =
       _L.getStableDelay(ARCH::INPUT, inputStableVolumn, PEXRange, PEYRange);
   long long weightStableDelay =
@@ -153,12 +173,18 @@ int Analyzer::compOneStateStableDelay() {
   long long outputCoupledNum =
       _L.getActiveAccessPointNum(ARCH::OUTPUT, PEXRange, PEYRange);
   if (_curBaseIndex == 0) {
-    _result->stableDelay[ARCH::INPUT] =
-        std::max(_result->stableDelay[ARCH::INPUT], inputStableDelay);
-    _result->stableDelay[ARCH::WEIGHT] =
-        std::max(_result->stableDelay[ARCH::WEIGHT], weightStableDelay);
-    _result->stableDelay[ARCH::OUTPUT] =
-        std::max(_result->stableDelay[ARCH::OUTPUT], outputStableDelay);
+    if (_L.checkIfNetworkExtended()) {
+      _result->stableDelay[ARCH::INPUT] = 0;
+      _result->stableDelay[ARCH::WEIGHT] = 0;
+      _result->stableDelay[ARCH::OUTPUT] = 0;
+    } else {
+      _result->stableDelay[ARCH::INPUT] =
+          std::max(_result->stableDelay[ARCH::INPUT], inputStableDelay);
+      _result->stableDelay[ARCH::WEIGHT] =
+          std::max(_result->stableDelay[ARCH::WEIGHT], weightStableDelay);
+      _result->stableDelay[ARCH::OUTPUT] =
+          std::max(_result->stableDelay[ARCH::OUTPUT], outputStableDelay);
+    }
     _result->stableDelay[3] = std::max(_result->stableDelay[3],
                                        _baseSet[_curBaseIndex].baseCompCycle);
   }
@@ -223,6 +249,10 @@ int Analyzer::compOneStateStableDelay() {
                                (double)_baseSet[_curBaseIndex].baseCompCycle));
   }
 
+  if (_L.checkIfNetworkExtended()) {
+    inputAndWeightStableDelay = 0;
+    outputStableDelay = 0;
+  }
   if (_doubleBufferFlag) {
     return std::max(std::max(inputAndWeightStableDelay, outputStableDelay),
                     _baseSet[_curBaseIndex].baseCompCycle);
@@ -235,6 +265,7 @@ int Analyzer::compOneStateStableDelay() {
 long long Analyzer::compOneStateInitDelay(std::pair<int, int> &PEXRange,
                                           std::pair<int, int> &PEYRange,
                                           int stableDelay) {
+
   long long inputInitVolumn =
       std::accumulate(_baseSet[_curBaseIndex].baseData[ARCH::INPUT].begin(),
                       _baseSet[_curBaseIndex].baseData[ARCH::INPUT].end(), 1,
@@ -298,6 +329,8 @@ long long Analyzer::compOneStateInitDelay(std::pair<int, int> &PEXRange,
                    _L.getInitOrOutBW(ARCH::OUTPUT, outputInitVolumn, PEXRange,
                                      PEYRange, stableDelay));
   }
+  // if (_L.checkIfNetworkExtended())
+  //    return 0;
   return inputAndWeightInitDelay + outputOutDelay;
 }
 
@@ -424,7 +457,8 @@ void Analyzer::compOneStateVolumn(
                         std::multiplies<long long>());
     if (innerCoupledDimIndex == -1 ||
         coef >=
-            _baseSet[_curBaseIndex].baseData[dataType][innerCoupledDimIndex]) {
+            _baseSet[_curBaseIndex].baseData[dataType][innerCoupledDimIndex] ||
+        _subNetworkExtended) {
       long long singlePEVolumn =
           compOneStateTimeSize(innerTimeVec) * baseVolumn;
       uniqueVolumn += singlePEVolumn *
@@ -603,6 +637,8 @@ void Analyzer::constructInnerOuterTimeVec(std::vector<int> &innerTimeVec,
 }
 
 bool Analyzer::compAndCheckRequiredDataSize() {
+  if (_L.checkIfNetworkExtended())
+    return true;
   _tensorDimRange = std::vector<std::vector<long long>>(3);
   _tensorDimRange[ARCH::OUTPUT] = _oriO.getEveryDimRange();
   _tensorDimRange[ARCH::INPUT] = _oriI.getEveryDimRange();
@@ -626,6 +662,9 @@ bool Analyzer::compAndCheckRequiredDataSize() {
   //_requiredDataSize[ARCH::OUTPUT] = _O.getVolumn();
   //_requiredDataSize[ARCH::INPUT] = _I.getVolumn();
   //_requiredDataSize[ARCH::WEIGHT] = _W.getVolumn();
+  _L.setFreeBufferCapacity(_requiredDataSize[ARCH::INPUT],
+                           _requiredDataSize[ARCH::WEIGHT],
+                           _requiredDataSize[ARCH::OUTPUT]);
   if (_L.checkIfBufferTotal()) {
     long long tmp = _requiredDataSize[ARCH::INPUT] +
                     _requiredDataSize[ARCH::WEIGHT] +

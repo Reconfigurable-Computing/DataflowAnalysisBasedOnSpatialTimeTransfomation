@@ -273,7 +273,7 @@ struct AnalyzerResult {
     logFile << "\"innerMostRegLeakagePower\":\""
             << std::to_string(innerMostRegLeakagePower) << "\",\n";
     logFile << "\"accumulateLeakagePower\":\""
-            << std::to_string(accumulateLeakagePower) << "\",\n";
+            << std::to_string(accumulateLeakagePower) << "\"\n";
   }
 };
 
@@ -293,7 +293,8 @@ struct TransformSearchResult {
 
 struct MultiLevelTransformSearchResult {
   std::vector<std::shared_ptr<TransformSearchResult>> _transformSearchResult;
-  MultiLevelTransformSearchResult(){};
+  long long _index;
+  MultiLevelTransformSearchResult(long long index) : _index(index){};
   void addResult(MAPPING::Transform T,
                  std::shared_ptr<AnalyzerResult> &result) {
     _transformSearchResult.push_back(
@@ -324,7 +325,8 @@ struct GroupSearchResult {
       : _multiLevelTransformSearchResult(multiLevelTransformSearchResult),
         _coupledVarVecVec(coupledVarVecVec) {}
   void outputLog(std::ofstream &logFile, int index, int levelNum) {
-    logFile << " \"Group Search: " << std::to_string(index);
+    logFile << " \"Group Search: "
+            << std::to_string(_multiLevelTransformSearchResult->_index);
     for (int i = 0; i < levelNum; i++) {
       auto vec = _coupledVarVecVec[i];
       logFile << "Level " + std::to_string(i) << ' ';
@@ -332,7 +334,25 @@ struct GroupSearchResult {
         logFile << num->getSym() << ' ';
       }
     }
+    std::vector<std::shared_ptr<WORKLOAD::Iterator>> coupledVarVec;
+    for (auto iteratorVec : _coupledVarVecVec) {
+      for (auto iterator : iteratorVec) {
+        coupledVarVec.push_back(iterator);
+      }
+    }
     logFile << "\":{" << std::endl;
+    logFile << "\"Coupled Var\":\n";
+    logFile << "{";
+    int count = 0;
+    for (auto &var : coupledVarVec) {
+      if (count != 0)
+        logFile << ',';
+      logFile << "\"" << std::to_string(count) << "\":\"";
+      count++;
+      logFile << var->to_string();
+      logFile << "\"\n";
+    }
+    logFile << "},";
     _multiLevelTransformSearchResult->outputLog(logFile);
     logFile << "}";
   }

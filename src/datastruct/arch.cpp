@@ -334,11 +334,14 @@ double getNetworkCost(ARCH::DATATYPE dataType, ARCH::NETWORKTYPE networkType,
   }
 }
 double Buffer::getBufferCost(int flag, int bankNum, int dataWidthRatio) {
+
   double ret;
   if (_bufferType == REG) {
     ret = _Cost._regData.lookup((_capacity + bankNum - 1) / bankNum, flag);
-  } else {
+  } else if (_bufferType == SRAM) {
     ret = _Cost._sramData.lookup((_capacity + bankNum - 1) / bankNum, flag);
+  } else {
+    return 0;
   }
   ret *= dataWidthRatio;
   if (flag == 0 || flag == 1) { // for per energy

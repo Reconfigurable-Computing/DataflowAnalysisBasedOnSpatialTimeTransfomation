@@ -17,6 +17,12 @@ void MultLevelAnalyzer::addLevel(
     _validFlags.push_back(false);
   else
     _validFlags.push_back(true);
+  if (!_analyzerSet.empty()) {
+    if (_analyzerSet[_analyzerSet.size() - 1]
+            .getLevel()
+            .checkIfNetworkExtended())
+      analyzer._subNetworkExtended = true;
+  }
   _analyzerSet.emplace_back(analyzer);
 }
 void MultLevelAnalyzer::addLevel(
@@ -33,6 +39,12 @@ void MultLevelAnalyzer::addLevel(
   Analyzer analyzer =
       Analyzer(coupledVarVec, T, _I, _W, _O, L, doubleBufferFlag);
   _validFlags.push_back(false);
+  if (!_analyzerSet.empty()) {
+    if (_analyzerSet[_analyzerSet.size() - 1]
+            .getLevel()
+            .checkIfNetworkExtended())
+      analyzer._subNetworkExtended = true;
+  }
   _analyzerSet.emplace_back(analyzer);
 }
 
@@ -215,6 +227,18 @@ void MultLevelAnalyzer::compMultiLevelReuslt(
         _analyzerSet[i].compTotalBandWidth(ARCH::WEIGHT);
     result->totalBandWidth[ARCH::OUTPUT] =
         _analyzerSet[i].compTotalBandWidth(ARCH::OUTPUT);
+    if (_analyzerSet[i]._subNetworkExtended) {
+      auto subResult = _resultSet[i - 1];
+      result->totalVolumn[ARCH::INPUT] = subResult->totalVolumn[ARCH::INPUT];
+      result->totalVolumn[ARCH::WEIGHT] = subResult->totalVolumn[ARCH::WEIGHT];
+      result->totalVolumn[ARCH::OUTPUT] = subResult->totalVolumn[ARCH::OUTPUT];
+      result->reuseVolumn[ARCH::INPUT] =
+          result->totalVolumn[ARCH::INPUT] - result->uniqueVolumn[ARCH::INPUT];
+      result->reuseVolumn[ARCH::WEIGHT] = result->totalVolumn[ARCH::WEIGHT] -
+                                          result->uniqueVolumn[ARCH::WEIGHT];
+      result->reuseVolumn[ARCH::OUTPUT] = result->totalVolumn[ARCH::OUTPUT] -
+                                          result->uniqueVolumn[ARCH::OUTPUT];
+    }
   }
 }
 
@@ -243,7 +267,7 @@ void MultLevelAnalyzer::oneAnalysis() {
   compEnergy();
   compArea();
   compPower();
-  outputCSV();
+  // outputCSV();
 }
 
 void MultLevelAnalyzer::outputCSVArrayName(std::string name,

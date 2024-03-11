@@ -1,4 +1,5 @@
 #include "include/searchEngine/groupSearchEngine.h"
+
 namespace DSE {
 void GroupSearchEngine::combine(int n, int k, std::vector<Group> &groupVec) {
   std::vector<int> temp;
@@ -65,6 +66,16 @@ void GroupSearchEngine::buildCoupleVarVec(
       }
       logFile << "\":{" << std::endl;
     }
+    // for (int i = 0; i < levelNum; i++)
+    //{
+    //    auto vec = coupledVarVecVec[i];
+    //    std::cout << "Level" + std::to_string(i) << ' ';
+    //    for (auto num : vec)
+    //    {
+    //        std::cout << num->getSym() << ' ';
+    //    }
+    //}
+    // std::cout << std::endl;
     totalCount += 1;
     DSE::MultiLevelTransformSearchEngine multiLevelTransformSearchEngine(_I, _W,
                                                                          _O);
@@ -149,19 +160,20 @@ void GroupSearchEngine::sortResult(int flag) {
               cmpResultByTotalCycle);
   }
   for (int i = 0; i < _groupSearchResult.size(); i++) {
-    // printf("%lld ",
-    // _groupSearchResult[i]->_multiLevelTransformSearchResult->_transformSearchResult[1]->_result->delay);
+    printf("%lld ",
+           _groupSearchResult[i]
+               ->_multiLevelTransformSearchResult->_transformSearchResult[1]
+               ->_result->delay);
 
-    // std::vector<std::shared_ptr<TransformSearchResult>>& tr1 =
-    // _groupSearchResult[i]->_multiLevelTransformSearchResult->_transformSearchResult;
-    // long long unique1 = 0;
-    /*           for (int j = 0; j < 2; j++)
-               {
-                   for (int k = 0; k < 3; k++)
-                   {
-                       unique1 += tr1[j]->_result->uniqueVolumn[k];
-                   }
-               }*/
+    std::vector<std::shared_ptr<TransformSearchResult>> &tr1 =
+        _groupSearchResult[i]
+            ->_multiLevelTransformSearchResult->_transformSearchResult;
+    long long unique1 = 0;
+    for (int j = 0; j < 2; j++) {
+      for (int k = 0; k < 3; k++) {
+        unique1 += tr1[j]->_result->uniqueVolumn[k];
+      }
+    }
     // printf("%lld\n", unique1);
     // printf("%lld\n", tr1[0]->_result->requiredDataSize[0] +
     // tr1[0]->_result->requiredDataSize[1] +
@@ -169,12 +181,25 @@ void GroupSearchEngine::sortResult(int flag) {
   }
 }
 void GroupSearchEngine::outputTopResult(std::ofstream &ofile, int num) {
+  int levelSize =
+      _groupSearchResult[0]
+          ->_multiLevelTransformSearchResult->_transformSearchResult.size();
   sortResult();
   num = std::min(num, int(_groupSearchResult.size()));
   ofile << "{\n";
+  long long curDelay = 0;
   for (int i = 0; i < num; i++) {
     if (i != 0)
       ofile << ",\n";
+    if (curDelay == _groupSearchResult[i]
+                        ->_multiLevelTransformSearchResult
+                        ->_transformSearchResult[levelSize - 1]
+                        ->_result->delay)
+      continue;
+    curDelay = _groupSearchResult[i]
+                   ->_multiLevelTransformSearchResult
+                   ->_transformSearchResult[levelSize - 1]
+                   ->_result->delay;
     _groupSearchResult[i]->outputLog(ofile, i, _LVec.size());
   }
   ofile << "}";

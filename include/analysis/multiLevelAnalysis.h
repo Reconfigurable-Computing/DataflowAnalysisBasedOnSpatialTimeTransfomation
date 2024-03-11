@@ -83,11 +83,12 @@ public:
   void outputCSV();
   void outputLog(std::ofstream &logFile);
   void constructSearchResult(
-      std::vector<std::shared_ptr<MultiLevelTransformSearchResult>>
-          &mltsResult) {
+      std::vector<std::shared_ptr<MultiLevelTransformSearchResult>> &mltsResult,
+      long long index) {
     if (_resultSet.size() == 0)
       return;
-    mltsResult.push_back(std::make_shared<MultiLevelTransformSearchResult>());
+    mltsResult.push_back(
+        std::make_shared<MultiLevelTransformSearchResult>(index));
     int levelNum = _analyzerSet.size();
     int mltsResultSize = mltsResult.size();
     for (int i = 0; i < levelNum; i++) {

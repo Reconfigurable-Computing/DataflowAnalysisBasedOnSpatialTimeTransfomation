@@ -87,6 +87,7 @@ private:
                     std::vector<std::shared_ptr<WORKLOAD::Iterator>> &varVec);
 
 public:
+  bool _subNetworkExtended;
   Analyzer(std::vector<std::shared_ptr<WORKLOAD::Iterator>> &coupledVarVec,
            MAPPING::Transform &T, WORKLOAD::Tensor &I, WORKLOAD::Tensor &W,
            WORKLOAD::Tensor &O, ARCH::Level &L, bool doubleBufferFlag)
@@ -96,6 +97,7 @@ public:
     for (int i = 0; i < 3; i++)
       _requiredDataSize[0] = 0;
     reset();
+    _subNetworkExtended = false;
   }
   ARCH::Level &getLevel() { return _L; }
 
@@ -150,14 +152,14 @@ public:
       std::shared_ptr<WORKLOAD::Iterator> inner;
       if (res == 0) {
         outer = std::make_shared<WORKLOAD::Iterator>(
-            WORKLOAD::Iterator(0, quotient - 1, PEIterator->getSym() + "_out"));
+            WORKLOAD::Iterator(0, quotient - 1, PEIterator->getSym() + "_o"));
         inner = std::make_shared<WORKLOAD::Iterator>(
-            WORKLOAD::Iterator(0, peRange - 1, PEIterator->getSym() + "_in"));
+            WORKLOAD::Iterator(0, peRange - 1, PEIterator->getSym() + "_i"));
       } else {
         inner = std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(
-            0, peRange - 1, 0, res - 1, PEIterator->getSym() + "_in"));
+            0, peRange - 1, 0, res - 1, PEIterator->getSym() + "_i"));
         outer = std::make_shared<WORKLOAD::Iterator>(WORKLOAD::Iterator(
-            0, quotient - 1, inner, PEIterator->getSym() + "_out"));
+            0, quotient - 1, inner, PEIterator->getSym() + "_o"));
       }
       if (dim == 0)
         PEX = inner;

@@ -160,9 +160,10 @@ void Generator::startAnalysis(
   }
   // std::cout << multanalysis.constraintCheck() << std::endl;
   multanalysis.oneAnalysis();
-  multanalysis.constructSearchResult(mltsResult);
+  multanalysis.constructSearchResult(
+      mltsResult, MultiLevelTransformSearchEngine::_resultCount);
+  MultiLevelTransformSearchEngine::_resultCount++;
   if (logFlag) {
-    MultiLevelTransformSearchEngine::_resultCount++;
     if (!firstFlag)
       logFile << ",\n";
     logFile << "\"ANSWER:"

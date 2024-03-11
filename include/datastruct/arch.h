@@ -14,7 +14,7 @@ namespace ARCH {
 // decclare the network reuse type
 typedef enum { UNICAST, MULTICAST, SYSTOLIC, STATIONARY } NETWORKTYPE;
 // declare the physical type of buffer
-typedef enum { SRAM, REG } BufferType;
+typedef enum { SRAM, REG, DRAM } BufferType;
 // declare the data type of buffer
 typedef enum {
   INPUT = 0,
@@ -553,6 +553,10 @@ public:
     return requiredBufferSize <= _capacity;
   }
   long long getCapacity() { return _capacity; }
+  void setFreeBufferCapacity(long long capacity) {
+    if (_capacity == LLONG_MAX)
+      _capacity = capacity;
+  }
   double getBufferCost(int flag, int bankNum, int dataWidthRatio);
 }; // end of Buffer
 class Level {
@@ -588,7 +592,21 @@ public:
       : Level(rowNum, 1, dataWidth, peFlag, 1) {}
   Level(int dataWidth, bool peFlag = false)
       : Level(1, 1, dataWidth, peFlag, 0) {}
-
+  void setFreeBufferCapacity(long long capacityInput, long long capacityWeight,
+                             long long capacityOutput) {
+    if (_inputWeightSharedBWFlag) {
+      (*_bufferSet)[ALLINPUT]->setFreeBufferCapacity(capacityInput +
+                                                     capacityWeight);
+      (*_bufferSet)[OUTPUT]->setFreeBufferCapacity(capacityOutput);
+    } else if (_totalSharedBWFlag) {
+      (*_bufferSet)[TOTAL]->setFreeBufferCapacity(
+          capacityInput + capacityWeight + capacityOutput);
+    } else {
+      (*_bufferSet)[INPUT]->setFreeBufferCapacity(capacityInput);
+      (*_bufferSet)[WEIGHT]->setFreeBufferCapacity(capacityWeight);
+      (*_bufferSet)[OUTPUT]->setFreeBufferCapacity(capacityOutput);
+    }
+  }
   void updateNetworkActivateCountMap(
       DATATYPE dataType, std::pair<int, int> &PEXRange,
       std::pair<int, int> &PEYRange, long long base,
@@ -603,6 +621,8 @@ public:
   }
 
   double getBufferCost(DATATYPE dataType, int flag) {
+    if (checkIfNetworkExtended())
+      return 0;
     if (_inputWeightSharedBWFlag) {
       int inputBandwidth =
           (*_networkGroupSet)[ARCH::INPUT]->getNetworkBandWidth();
@@ -633,6 +653,8 @@ public:
     }
   }
   double getBufferAreaAndLeakagePower(DATATYPE dataType, int flag) {
+    if (checkIfNetworkExtended())
+      return 0;
     if (_inputWeightSharedBWFlag) {
       if (dataType == INPUT) {
         return getBufferCost(ALLINPUT, flag);
@@ -654,6 +676,8 @@ public:
 
   double getBufferReadWriteEnergy(DATATYPE dataType, long long count,
                                   int readWriteFlag) {
+    if (checkIfNetworkExtended())
+      return 0;
     double perEnergy = 0;
     if (_inputWeightSharedBWFlag) {
       if (dataType == INPUT || dataType == WEIGHT) {
@@ -693,8 +717,12 @@ public:
         _dataWidth, activateCountMap);
   }
 
+  bool checkIfNetworkExtended() { return _bufferSet->empty(); }
+
   void setInputWeightSharedBW() { _inputWeightSharedBWFlag = true; }
-  bool ifInputWeightSharedBW() { return _inputWeightSharedBWFlag; }
+  bool ifInputWeightSharedBW() {
+    return _inputWeightSharedBWFlag || _totalSharedBWFlag;
+  }
   int getSpatialDimNum() { return _array->getSpatialDimNum(); }
   void appendBuffer(BufferType bufferType, DATATYPE dataType,
                     long long capacity = LLONG_MAX) {
