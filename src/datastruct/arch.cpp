@@ -117,8 +117,7 @@ int NetworkGroup::getInitOrOutDelay(int base, int dataWidth,
       // STATIONARY - SYSTOLIC UNICAST
       if (networkType2 == SYSTOLIC) {
         return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
-                        dataWidth) *
-               (*_networkSet)[1]->getMaxCoupleNum(PEXRange, PEYRange);
+                        dataWidth);
       } else // UNICAST
       {
         return getDelay(base * getActiveAccessPointNum(PEXRange, PEYRange),
@@ -159,12 +158,10 @@ long long NetworkGroup::getInitOrOutBW(int base, int dataWidth,
     if (networkType1 == STATIONARY || networkType1 == UNICAST) {
       // STATIONARY - SYSTOLIC UNICAST
       if (networkType2 == SYSTOLIC) {
-        return std::ceil(
-            (double)((long long)base *
-                     getActiveAccessPointNum(PEXRange, PEYRange) *
-                     (*_networkSet)[1]->getMaxCoupleNum(PEXRange, PEYRange) *
-                     dataWidth) /
-            (double)(stableDelay));
+        return std::ceil((double)((long long)base *
+                                  getActiveAccessPointNum(PEXRange, PEYRange) *
+                                  dataWidth) /
+                         (double)(stableDelay));
       } else // UNICAST
       {
         return std::ceil((double)((long long)base *

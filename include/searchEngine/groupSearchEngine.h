@@ -1,4 +1,4 @@
-
+#pragma once
 #include "include/searchEngine/transformSearchEngine.h"
 namespace DSE {
 

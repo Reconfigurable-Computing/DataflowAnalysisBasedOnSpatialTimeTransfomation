@@ -150,6 +150,7 @@ public:
 
   int getCoef() { return _coef; }
   int getCur() { return _coef * _var->getCur(); }
+  void setCoef(int coef) { _coef = coef; }
 }; // end of Monomial
 
 std::shared_ptr<Monomial> operator*(std::shared_ptr<Iterator> var, int coef);
@@ -189,6 +190,12 @@ public:
   }
   Polynomial &operator+(std::shared_ptr<Iterator> other) {
     _monomialSet->push_back(std::make_shared<Monomial>(other));
+    return *this;
+  }
+  Polynomial &operator*(int var) {
+    for (auto m : *_monomialSet) {
+      m->setCoef(var * m->getCoef());
+    }
     return *this;
   }
   std::string to_string() {
@@ -288,6 +295,11 @@ std::shared_ptr<Polynomial> operator+(std::shared_ptr<Polynomial> var1,
                                       std::shared_ptr<Monomial> var2);
 std::shared_ptr<Polynomial> operator+(std::shared_ptr<Polynomial> var1,
                                       std::shared_ptr<Polynomial> var2);
+std::shared_ptr<Polynomial> operator*(int var1,
+                                      std::shared_ptr<Polynomial> var2);
+std::shared_ptr<Polynomial> operator*(std::shared_ptr<Polynomial> var1,
+                                      int var2);
+
 void generateEdgeState(
     std::vector<std::vector<int>> &state,
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> &curSubCoupledVarVec);

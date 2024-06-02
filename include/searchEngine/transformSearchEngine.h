@@ -3,6 +3,7 @@
 #include "include/datastruct/arch.h"
 #include "include/datastruct/mapping.h"
 #include "include/datastruct/workload.h"
+#include "include/util/config.h"
 #include <algorithm>
 #include <numeric>
 #include <thread>
@@ -51,7 +52,7 @@ public:
   }
 
   void addLevel(MultLevelAnalyzer &multanalysis) {
-    multanalysis.addLevel(_coupledVarVec, _L, _spatialDimNum);
+    multanalysis.addLevel(_coupledVarVec, _L, _L.getDoubleBufferFlag());
   }
   static void setMatrixAsOne(int dimNum, MAPPING::Transform &T,
                              std::vector<int> &permute, int start);

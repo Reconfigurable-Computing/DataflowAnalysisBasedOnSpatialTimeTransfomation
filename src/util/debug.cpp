@@ -8,11 +8,7 @@ void printError(ErrorType errortype, std::string msg) {
     break;
   }
   case NETWORKOPERROR: {
-    std::cout << "Error!Excute a error network operation:" << msg << std::endl;
-    break;
-  }
-  case NETWORKFEATUREERROR: {
-    std::cout << "Error!Invalid featureVec:" << msg << std::endl;
+    std::cout << "Error!Execute a error network operation:" << msg << std::endl;
     break;
   }
   case REUSEVECSOLVEERROR: {
@@ -34,6 +30,42 @@ void printError(ErrorType errortype, std::string msg) {
   }
   case PEDIMOUTOFRANGE: {
     std::cout << "Error!PEDim out of Range:" << msg << std::endl;
+    break;
+  }
+  case NETWORK_FEATURE_ERROR: {
+    std::cout << "Error!Invalid featureVec:" << msg << std::endl;
+    break;
+  }
+  case TASK_INCOMPLETE: {
+    std::cout << "Error!Incomplete task:" << msg << std::endl;
+    break;
+  }
+  case ERROR_LEVEL: {
+    std::cout << "Error!Incomplete level:" << msg << std::endl;
+    break;
+  }
+  case EMPTY_ACCELERATOR: {
+    std::cout << "Error!Empty accelerator:" << msg << std::endl;
+    break;
+  }
+  case EMPTY_TARGET: {
+    std::cout << "Error!Empty target:" << msg << std::endl;
+    break;
+  }
+  case EMPTY_TASK: {
+    std::cout << "Error!Empty task:" << msg << std::endl;
+    break;
+  }
+  case ERROR_CANDIDATE: {
+    std::cout << "Error!Error tile candidate:" << msg << std::endl;
+    break;
+  }
+  case ERROR_ACCELERATOR_SET: {
+    std::cout << "Error!Error accelerator set:" << msg << std::endl;
+    break;
+  }
+  case EMPTY_ACCELERATOR_SET: {
+    std::cout << "Error!Empty accelerator set:" << msg << std::endl;
     break;
   }
   }

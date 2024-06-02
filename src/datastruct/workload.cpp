@@ -34,21 +34,42 @@ std::shared_ptr<Polynomial> operator+(std::shared_ptr<Iterator> var1,
 
 std::shared_ptr<Polynomial> operator+(std::shared_ptr<Polynomial> var1,
                                       std::shared_ptr<Iterator> var2) {
-
-  *var1 + var2;
-  return var1;
+  std::shared_ptr<Polynomial> ret = std::make_shared<Polynomial>();
+  *ret + var1;
+  *ret + var2;
+  return ret;
 }
 std::shared_ptr<Polynomial> operator+(std::shared_ptr<Polynomial> var1,
                                       std::shared_ptr<Monomial> var2) {
-
-  *var1 + var2;
-  return var1;
+  std::shared_ptr<Polynomial> ret = std::make_shared<Polynomial>();
+  *ret + var1;
+  *ret + var2;
+  return ret;
 }
 std::shared_ptr<Polynomial> operator+(std::shared_ptr<Polynomial> var1,
                                       std::shared_ptr<Polynomial> var2) {
-  *var1 + var2;
-  return var1;
+  std::shared_ptr<Polynomial> ret = std::make_shared<Polynomial>();
+  *ret + var1;
+  *ret + var2;
+  return ret;
 }
+
+std::shared_ptr<Polynomial> operator*(int var1,
+                                      std::shared_ptr<Polynomial> var2) {
+  std::shared_ptr<Polynomial> ret = std::make_shared<Polynomial>();
+  *ret + var2;
+  *ret *var1;
+  return ret;
+}
+
+std::shared_ptr<Polynomial> operator*(std::shared_ptr<Polynomial> var1,
+                                      int var2) {
+  std::shared_ptr<Polynomial> ret = std::make_shared<Polynomial>();
+  *ret + var1;
+  *ret *var2;
+  return ret;
+}
+
 void generateEdgeState(
     std::vector<std::vector<int>> &state,
     std::vector<std::shared_ptr<WORKLOAD::Iterator>> &curSubCoupledVarVec) {

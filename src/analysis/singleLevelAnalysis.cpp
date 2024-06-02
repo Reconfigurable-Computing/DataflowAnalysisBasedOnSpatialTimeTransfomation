@@ -89,11 +89,11 @@ void Analyzer::delayAnalysis(std::vector<int> &innerTimeVec,
   }
   if (_doubleBufferFlag) {
     //_result->delay += ((long long)outerTimeSize - 1) * std::max(delay,
-    //initDelay) + initDelay + delay; _result->compCycle += (long
-    //long)outerTimeSize * compCycle; _result->activePEMultTimeNum += (long
-    //long)outerTimeSize * activePEMultTimeNum; _result->totalPEMultTimeNum +=
+    // initDelay) + initDelay + delay; _result->compCycle += (long
+    // long)outerTimeSize * compCycle; _result->activePEMultTimeNum += (long
+    // long)outerTimeSize * activePEMultTimeNum; _result->totalPEMultTimeNum +=
     //(((long long)outerTimeSize - 1) * std::max(delay, initDelay) + initDelay +
-    //delay) * _L.getPENum(); _result->initTimes += outerTimeSize;
+    // delay) * _L.getPENum(); _result->initTimes += outerTimeSize;
     _result->delay += ((long long)outerTimeSize) * std::max(delay, initDelay);
     _result->compCycle += (long long)outerTimeSize * compCycle;
     _result->activePEMultTimeNum +=
@@ -265,7 +265,6 @@ int Analyzer::compOneStateStableDelay() {
 long long Analyzer::compOneStateInitDelay(std::pair<int, int> &PEXRange,
                                           std::pair<int, int> &PEYRange,
                                           int stableDelay) {
-
   long long inputInitVolumn =
       std::accumulate(_baseSet[_curBaseIndex].baseData[ARCH::INPUT].begin(),
                       _baseSet[_curBaseIndex].baseData[ARCH::INPUT].end(), 1,
@@ -299,10 +298,12 @@ long long Analyzer::compOneStateInitDelay(std::pair<int, int> &PEXRange,
     bool weightIfStationary = _L.checkIfStationary(ARCH::WEIGHT);
     bool outputIfStationary = _L.checkIfStationary(ARCH::OUTPUT);
     if (inputIfStationary || weightIfStationary)
-      _result->requiredBandWidth[ARCH::INPUT] = std::max(
-          _result->requiredBandWidth[ARCH::INPUT],
-          _L.getInitOrOutBW(ARCH::INPUT, inputInitVolumn + weightInitVolumn,
-                            PEXRange, PEYRange, stableDelay));
+      _result->requiredBandWidth[ARCH::INPUT] =
+          std::max(_result->requiredBandWidth[ARCH::INPUT],
+                   _L.getInitOrOutBW(ARCH::INPUT, inputInitVolumn, PEXRange,
+                                     PEYRange, stableDelay) +
+                       _L.getInitOrOutBW(ARCH::WEIGHT, weightInitVolumn,
+                                         PEXRange, PEYRange, stableDelay));
     if (outputIfStationary)
       _result->requiredBandWidth[ARCH::OUTPUT] =
           std::max(_result->requiredBandWidth[ARCH::OUTPUT],
@@ -455,10 +456,9 @@ void Analyzer::compOneStateVolumn(
         std::accumulate(_baseSet[_curBaseIndex].baseData[dataType].begin(),
                         _baseSet[_curBaseIndex].baseData[dataType].end(), 1,
                         std::multiplies<long long>());
-    if (innerCoupledDimIndex == -1 ||
+    if (_subNetworkExtended || innerCoupledDimIndex == -1 ||
         coef >=
-            _baseSet[_curBaseIndex].baseData[dataType][innerCoupledDimIndex] ||
-        _subNetworkExtended) {
+            _baseSet[_curBaseIndex].baseData[dataType][innerCoupledDimIndex]) {
       long long singlePEVolumn =
           compOneStateTimeSize(innerTimeVec) * baseVolumn;
       uniqueVolumn += singlePEVolumn *

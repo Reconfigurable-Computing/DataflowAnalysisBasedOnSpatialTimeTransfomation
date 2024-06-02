@@ -313,6 +313,7 @@ struct MultiLevelTransformSearchResult {
 };
 
 struct GroupSearchResult {
+  double score;
   std::vector<std::vector<std::shared_ptr<WORKLOAD::Iterator>>>
       _coupledVarVecVec;
   std::shared_ptr<MultiLevelTransformSearchResult>
@@ -323,7 +324,7 @@ struct GroupSearchResult {
       std::shared_ptr<MultiLevelTransformSearchResult>
           multiLevelTransformSearchResult)
       : _multiLevelTransformSearchResult(multiLevelTransformSearchResult),
-        _coupledVarVecVec(coupledVarVecVec) {}
+        _coupledVarVecVec(coupledVarVecVec), score(0) {}
   void outputLog(std::ofstream &logFile, int index, int levelNum) {
     logFile << " \"Group Search: "
             << std::to_string(_multiLevelTransformSearchResult->_index);

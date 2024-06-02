@@ -465,12 +465,12 @@ public:
         ret = false;
     }
     int vec2Num = vec2.size();
-    if (vec1[2] == 0) {
-      for (int j = 3; j < vec2Num; j++) {
-        if (vec2[j] != 0)
-          ret = false;
-      }
+
+    for (int j = 3; j < vec2Num; j++) {
+      if (vec2[j] != 0)
+        ret = false;
     }
+
     return ret;
   }
   bool checkNetworkReuseValid(
@@ -569,6 +569,7 @@ private:
   bool _totalSharedBWFlag;
   int _dataWidth;
   bool _peFlag;
+  bool _doubleBufferFlag;
 
   void appendArray(int rowNum, int colNum, int spaitalNum) {
     _array = std::make_shared<Array>(rowNum, colNum, _dataWidth, spaitalNum);
@@ -576,7 +577,7 @@ private:
 
 public:
   Level(int rowNum, int colNum, int dataWidth, bool peFlag = false,
-        int spatialDimNum = 2)
+        bool doubleBufferFlag = false, int spatialDimNum = 2)
       : _dataWidth(dataWidth) {
     _bufferSet =
         std::make_shared<std::map<DATATYPE, std::shared_ptr<Buffer>>>();
@@ -587,11 +588,14 @@ public:
     _peFlag = peFlag;
     _inputWeightSharedBWFlag = false;
     _totalSharedBWFlag = false;
+    _doubleBufferFlag = doubleBufferFlag;
   }
-  Level(int rowNum, int dataWidth, bool peFlag = false)
-      : Level(rowNum, 1, dataWidth, peFlag, 1) {}
-  Level(int dataWidth, bool peFlag = false)
-      : Level(1, 1, dataWidth, peFlag, 0) {}
+  Level(int rowNum, int dataWidth, bool peFlag = false,
+        bool doubleBufferFlag = false)
+      : Level(rowNum, 1, dataWidth, peFlag, doubleBufferFlag, 1) {}
+  Level(int dataWidth, bool peFlag = false, bool doubleBufferFlag = false)
+      : Level(1, 1, dataWidth, peFlag, doubleBufferFlag, 0) {}
+  bool getDoubleBufferFlag() { return _doubleBufferFlag; }
   void setFreeBufferCapacity(long long capacityInput, long long capacityWeight,
                              long long capacityOutput) {
     if (_inputWeightSharedBWFlag) {
