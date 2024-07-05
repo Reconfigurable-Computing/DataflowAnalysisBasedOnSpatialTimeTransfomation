@@ -1,6 +1,6 @@
 #include "include/util/config.h"
 using namespace WORKLOAD;
-
+// define tensor task
 void defineTask1(TaskSet &taskset) {
   Task task;
   task.defineRatio(1.0);
@@ -133,6 +133,7 @@ void defineTask8(TaskSet &taskset) {
   taskset.addTask(task);
 }
 
+// define tensor task set
 void defineTaskSet(TaskSet &taskset) {
   defineTask1(taskset);
   defineTask2(taskset);
@@ -144,6 +145,7 @@ void defineTaskSet(TaskSet &taskset) {
   defineTask8(taskset);
 }
 
+// define accelerator
 void defineAccelerator1(AcceleratorSet &accSet, int row, int col) {
   Accelerator acc;
   acc.setDataWidth(16);
@@ -158,6 +160,8 @@ void defineAccelerator1(AcceleratorSet &accSet, int row, int col) {
 
   accSet.addAcc(acc);
 }
+
+// define accelerator set
 void defineAcceleratorSet(AcceleratorSet &accSet) {
   defineAccelerator1(accSet, 4, 4);
   defineAccelerator1(accSet, 8, 8);

@@ -4,11 +4,13 @@
 #include "include/searchEngine/groupSearchEngine.h"
 namespace DSE {
 
+
 struct TileCandidateCombine {
   std::vector<std::shared_ptr<WORKLOAD::Iterator>> varVec;
   std::vector<int> sizeVec;
 };
 
+// TileSearchEngine is used to explore all partitioning schemes and invoke the groupSearchEngine
 class TileSearchEngine {
 private:
   WORKLOAD::Tensor _oriI;
@@ -34,6 +36,7 @@ public:
     reset();
   }
 
+  // add candidate to iterator
   void addCancidate(std::shared_ptr<WORKLOAD::Iterator> iterator,
                     int candidate) {
     if (_allIteratorCandidate.count(iterator) == 0) {
@@ -49,6 +52,7 @@ public:
     _W = _oriW;
   }
 
+  // split the iterators
   void split(std::shared_ptr<WORKLOAD::Iterator> iterator, int size) {
     int lowerBound = iterator->getLowBound();
     int upperBound = iterator->getUpBound();
@@ -83,6 +87,8 @@ public:
     _W.splitIterator(iterator, outer, inner, size);
     _O.splitIterator(iterator, outer, inner, size);
   }
+
+  // retrieve all combinations of partitioning schemes
   void combine(std::vector<TileCandidateCombine> &tileCandidateCombineVec,
                TileCandidateCombine &curCandidateCombine,
                std::vector<std::shared_ptr<WORKLOAD::Iterator>> &varVec,
@@ -102,6 +108,7 @@ public:
     }
   }
 
+  // entry of search
   void oneSearch(std::ofstream &logFile, bool logFlag) {
     std::vector<TileCandidateCombine> tileCandidateCombineVec;
     TileCandidateCombine curCandidateCombine;
@@ -148,6 +155,8 @@ public:
     std::ofstream logFile;
     oneSearch(logFile, false);
   }
+
+  // add accelerator level
   void addLevel(ARCH::Level &L) { _LVec.emplace_back(L); }
   static bool cmpResultByTotalCycle(std::shared_ptr<GroupSearchResult> &r1,
                                     std::shared_ptr<GroupSearchResult> &r2) {
@@ -172,6 +181,7 @@ public:
     else
       return false;
   }
+  // compute score for each dataflow
   void cmpScore(Target &target) {
     for (auto &r : _groupSearchResult) {
       std::vector<std::shared_ptr<TransformSearchResult>> &tr =

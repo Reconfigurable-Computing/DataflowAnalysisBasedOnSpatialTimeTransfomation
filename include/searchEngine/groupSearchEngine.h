@@ -1,7 +1,7 @@
 #pragma once
 #include "include/searchEngine/transformSearchEngine.h"
 namespace DSE {
-
+// a tree grouping record, where each level of the tree corresponds to the allocation of iterator groups to each hardware level
 class Group {
 public:
   std::vector<int> _indexVec;
@@ -9,6 +9,7 @@ public:
   Group() {}
   Group(std::vector<int> indexVec) : _indexVec(indexVec) {}
 };
+// groupSearchEngine is used to explore all grouping schemes and invoke the groupSearchEngine
 class GroupSearchEngine {
   WORKLOAD::Tensor &_I;
   WORKLOAD::Tensor &_W;
@@ -30,6 +31,7 @@ public:
     _LVec.emplace_back(L);
     _spatialNumVec.push_back(L.getSpatialDimNum());
   }
+
 
   void combine(int n, int k, std::vector<Group> &groupVec);
 

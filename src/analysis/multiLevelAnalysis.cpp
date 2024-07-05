@@ -188,6 +188,7 @@ void MultLevelAnalyzer::generateSublevelBaseResult(
   }
 }
 
+// Performing analysis by recursively constructing base volume and base delay, and conducting bottom-up analysis
 void MultLevelAnalyzer::recusiveAnalysis(int level) {
   if (level != 0) {
     std::vector<std::shared_ptr<AnalyzerResult>> subLevelResultVec;

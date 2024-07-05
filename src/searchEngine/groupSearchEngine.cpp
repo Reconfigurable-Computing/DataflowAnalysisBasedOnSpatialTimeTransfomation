@@ -1,12 +1,17 @@
 #include "include/searchEngine/groupSearchEngine.h"
 
 namespace DSE {
+
+// combination generation algorithm
+// n represents the total number of elements
+// k represents the size of the combinations to generate
+// groupVec is the vector that stores the generated combinations
 void GroupSearchEngine::combine(int n, int k, std::vector<Group> &groupVec) {
   std::vector<int> temp;
   for (int i = 1; i <= k; ++i) {
     temp.push_back(i);
   }
-  temp.push_back(n + 1);
+  temp.push_back(n + 1); // n + 1 is a termination condition
 
   int j = 0;
   while (j < k) {
@@ -19,7 +24,10 @@ void GroupSearchEngine::combine(int n, int k, std::vector<Group> &groupVec) {
     ++temp[j];
   }
 }
-
+// construct tree grouping record 
+// perGroupNum : how many itertors in one group, ex: perGroupNum={1,7} means that level0 has 1 itertor and level1 have 7 itertors
+// varNum: total iterator num
+// candidate: unallocated iterator index
 void GroupSearchEngine::constructGroup(std::vector<int> &perGroupNum,
                                        int levelIndex, int varNum,
                                        Group &rootGroup,
@@ -42,12 +50,16 @@ void GroupSearchEngine::constructGroup(std::vector<int> &perGroupNum,
                      varNum - perGroupNum[levelIndex], group, subCandidate);
   }
 }
-
+// recursively traverse the tree grouping record and construct coupledVarVecVec
+// rootGroup: root of the tree grouping record 
+// levelIndex: accelerator level index
+// coupledVarVecVec: the coupledVarVec of each level
 void GroupSearchEngine::buildCoupleVarVec(
     Group &rootGroup, int levelIndex,
     std::vector<std::vector<std::shared_ptr<WORKLOAD::Iterator>>>
         &coupledVarVecVec,
     std::ofstream &logFile, bool logFlag) {
+  // recursive termination
   if (levelIndex == _LVec.size()) {
     int levelNum = _LVec.size();
     if (logFlag) {
@@ -83,6 +95,7 @@ void GroupSearchEngine::buildCoupleVarVec(
     for (int i = 0; i < levelNum; i++) {
       multiLevelTransformSearchEngine.addLevel(coupledVarVecVec[i], _LVec[i]);
     }
+    // start transformSearchEngine
     multiLevelTransformSearchEngine.oneSearch(logFile, logFlag);
     if (logFlag)
       logFile << "}" << std::endl;
@@ -102,6 +115,9 @@ void GroupSearchEngine::buildCoupleVarVec(
   }
 }
 
+// perGroupNum : how many itertors in one group, ex: perGroupNum={1,7} means that level0 has 1 itertor and level1 have 7 itertors
+// varNum: how many iterators are still waiting for allocation
+// levelNum: accelerator level num
 void GroupSearchEngine::recusiveCompPerGroupNum(std::vector<int> &perGroupNum,
                                                 int varNum, int levelNum,
                                                 std::ofstream &logFile,
@@ -121,9 +137,11 @@ void GroupSearchEngine::recusiveCompPerGroupNum(std::vector<int> &perGroupNum,
     Group rootGroup;
     std::vector<int> candidate(_varVec.size(), 0);
     std::iota(candidate.begin(), candidate.end(), 0);
+    // construct the rootGroup according to perGroupNum
     constructGroup(perGroupNum, 0, _varVec.size(), rootGroup, candidate);
     std::vector<std::vector<std::shared_ptr<WORKLOAD::Iterator>>>
         coupledVarVecVec;
+    // use rootGroup build coupleVarVecVec
     buildCoupleVarVec(rootGroup, 0, coupledVarVecVec, logFile, logFlag);
     perGroupNum.pop_back();
   } else {
@@ -140,6 +158,7 @@ void GroupSearchEngine::recusiveCompPerGroupNum(std::vector<int> &perGroupNum,
   }
 }
 
+// entry of GroupSearchEngine
 void GroupSearchEngine::oneSearch(std::ofstream &logFile, bool logFlag) {
   if (_varVec.size() < _LVec.size())
     return;

@@ -9,6 +9,7 @@ void TransformSearchEngine::setMatrixAsOne(int dimNum, MAPPING::Transform &T,
   }
 }
 
+// generate transform matrices
 void TransformSearchEngine::generateTransformMatrix(
     int dimNum, int spatialDimNum, std::vector<int> &permute,
     std::vector<MAPPING::Transform> &Tvec) {
@@ -77,6 +78,7 @@ void TransformSearchEngine::generateTransformMatrix(
   }
 }
 
+// generate transform matrices(multi thread version)
 void generateAllTransformMatrixMultiThread(MultiThreadArgs args) {
   args._count = 0;
   std::vector<MAPPING::Transform> TVecTmp;
@@ -96,6 +98,7 @@ void generateAllTransformMatrixMultiThread(MultiThreadArgs args) {
       std::next_permutation(args._permute.begin() + 1, args._permute.end()));
 }
 
+// generate all transform matrices
 void TransformSearchEngine::generateAllTransformMatrix(
     int level, MultLevelAnalyzer &multanalysis,
     std::vector<MultLevelAnalyzer> &multanalysisVec) {
@@ -103,7 +106,8 @@ void TransformSearchEngine::generateAllTransformMatrix(
 
   assert(dimNum != 0);
 
-  if (dimNum <= 1) {
+  if (dimNum <= 1) { 
+    // no multi thread
 
     std::vector<MAPPING::Transform> TVecTmp;
     std::vector<int> permute{0};
@@ -116,7 +120,8 @@ void TransformSearchEngine::generateAllTransformMatrix(
       }
     }
     TransformSearchEngine::totalCount += TVecTmp.size();
-  } else {
+  } else {  
+    // multi thread
     std::vector<MAPPING::Transform> TVecTmp;
     std::vector<std::thread> threadVec;
     std::vector<std::vector<MAPPING::Transform>> _TVecVec(dimNum);
@@ -149,6 +154,8 @@ void TransformSearchEngine::generateAllTransformMatrix(
     }
   }
 }
+
+// call the analyzer
 void Generator::startAnalysis(
     MultLevelAnalyzer &multanalysis,
     std::vector<std::shared_ptr<MultiLevelTransformSearchResult>> &mltsResult,
@@ -156,6 +163,7 @@ void Generator::startAnalysis(
   int levelNum = _transformSearchEngineSet.size();
   for (int i = 0; i < levelNum; i++) {
     auto &transformSearchEngine = _transformSearchEngineSet[i];
+    // change to next transform matrix
     transformSearchEngine.changeT(i, multanalysis);
   }
   // std::cout << multanalysis.constraintCheck() << std::endl;

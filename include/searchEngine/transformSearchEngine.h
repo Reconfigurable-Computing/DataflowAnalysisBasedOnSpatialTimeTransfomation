@@ -9,7 +9,7 @@
 #include <thread>
 
 namespace DSE {
-
+// args for multi thread
 struct MultiThreadArgs {
   std::vector<int> _permute;
   int _spatialDimNum;
@@ -80,6 +80,8 @@ public:
   }
   bool isEmpty() { return _TVec.size() == 0; }
 };
+// transformSearchEngine will generate all possible transform matrices
+// and the generator will enumerate and analyze them one by one
 class Generator {
   std::vector<TransformSearchEngine> &_transformSearchEngineSet;
 
@@ -116,7 +118,7 @@ public:
     return true;
   }
 };
-
+// traverse through all transform matrices for each hardware level
 class MultiLevelTransformSearchEngine {
   WORKLOAD::Tensor &_I;
   WORKLOAD::Tensor &_W;
@@ -140,9 +142,11 @@ public:
   }
 
   void oneSearch(std::ofstream &logFile, bool logFlag) {
+    // multi level analysis for multi thread generateAllTransformMatrix
     std::vector<MultLevelAnalyzer> multanalysisVec;
     for (int i = 0; i < _countCoupledVar; i++)
       multanalysisVec.emplace_back(_I, _W, _O);
+    // for checkRequiredDataSize only, never start oneAnalysis
     MultLevelAnalyzer multanalysis(_I, _W, _O);
     int levelNum = _transformSearchEngineSet.size();
 
